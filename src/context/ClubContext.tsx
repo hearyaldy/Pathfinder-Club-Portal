@@ -66,7 +66,7 @@ interface ClubContextType {
   currentClubId: string;
   currentClub?: ClubEntity;
   setCurrentClubId: (id: string) => void;
-  addClub: (clubData: Omit<ClubEntity, 'id'>) => ClubEntity;
+  addClub: (clubData: Omit<ClubEntity, 'id'>) => Promise<ClubEntity>;
   updateClub: (clubId: string, updates: Partial<ClubEntity>) => void;
   deleteClub: (clubId: string) => void;
 
@@ -406,10 +406,10 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return created;
   };
 
-  const addClub = (clubData: Omit<ClubEntity, 'id'>): ClubEntity => {
+  const addClub = async (clubData: Omit<ClubEntity, 'id'>): Promise<ClubEntity> => {
     const ref = doc(clubsCol);
     const newClub: ClubEntity = { ...clubData, id: ref.id };
-    setDoc(ref, newClub);
+    await setDoc(ref, newClub);
     return newClub;
   };
 

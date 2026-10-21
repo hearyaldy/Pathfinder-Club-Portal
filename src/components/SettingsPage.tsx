@@ -57,6 +57,8 @@ export const SettingsPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'clubs' | 'units' | 'hierarchy' | 'profile' | 'policy' | 'district' | 'staff' | 'permissions'>('clubs');
   const [showAddClubModal, setShowAddClubModal] = useState(false);
+  const [clubSaving, setClubSaving] = useState(false);
+  const [clubSaveError, setClubSaveError] = useState('');
   const [showAddDivisionModal, setShowAddDivisionModal] = useState(false);
 
   // New Club Entity Form State
@@ -149,7 +151,7 @@ export const SettingsPage: React.FC = () => {
     setTimeout(() => setSaveSuccess(false), 2500);
   };
 
-  const handleAddNewChurch = (e: React.FormEvent) => {
+  const handleAddNewChurch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChurchName.trim()) return;
 
@@ -177,76 +179,95 @@ export const SettingsPage: React.FC = () => {
 
     // Auto-provision one Pathfinder club and one Adventurer club for the new church
     const shortName = newChurchName.trim().split(' ')[0];
-    const pfClub = addClub({
-      orgId: created.id,
-      name: newClubName.trim() || `${shortName} Pathfinder Club`,
-      clubType: 'Pathfinder',
-      directorName: newDirector.trim() || 'New Director, MG',
-      charterNumber: created.charterNumber,
-      meetingSchedule: created.meetingSchedule,
-      annualDues: created.annualDuesAmount,
-    });
-    const advClub = addClub({
-      orgId: created.id,
-      name: `${shortName} Adventurer Club`,
-      clubType: 'Adventurer',
-      directorName: 'Adventurer Leader',
-      charterNumber: `ADV-CC-${Math.floor(1000 + Math.random() * 9000)}`,
-      meetingSchedule: created.meetingSchedule,
-      annualDues: Math.round(created.annualDuesAmount * 0.7),
-    });
+    try {
+      const pfClub = await addClub({
+        orgId: created.id,
+        name: newClubName.trim() || `${shortName} Pathfinder Club`,
+        clubType: 'Pathfinder',
+        directorName: newDirector.trim() || 'New Director, MG',
+        charterNumber: created.charterNumber,
+        meetingSchedule: created.meetingSchedule,
+        annualDues: created.annualDuesAmount,
+      });
+      const advClub = await addClub({
+        orgId: created.id,
+        name: `${shortName} Adventurer Club`,
+        clubType: 'Adventurer',
+        directorName: 'Adventurer Leader',
+        charterNumber: `ADV-CC-${Math.floor(1000 + Math.random() * 9000)}`,
+        meetingSchedule: created.meetingSchedule,
+        annualDues: Math.round(created.annualDuesAmount * 0.7),
+      });
 
-    // Auto-provision a default unit under each club
-    addUnit({
-      orgId: created.id,
-      clubId: pfClub.id,
-      name: `${shortName} Falcons`,
-      branch: 'Pathfinders',
-      counselorName: newDirector.trim() || 'Unit Counselor',
-      genderDivision: 'Co-ed',
-      ageRange: 'Ages 10–13',
-      motto: 'Eyes on Heaven',
-    });
-    addUnit({
-      orgId: created.id,
-      clubId: advClub.id,
-      name: `${shortName} Busy Bees`,
-      branch: 'Adventurers',
-      counselorName: 'Adventurer Leader',
-      genderDivision: 'Co-ed',
-      ageRange: 'Ages 6–9',
-      motto: 'Always Willing to Serve',
-    });
+      // Auto-provision a default unit under each club
+      addUnit({
+        orgId: created.id,
+        clubId: pfClub.id,
+        name: `${shortName} Falcons`,
+        branch: 'Pathfinders',
+        counselorName: newDirector.trim() || 'Unit Counselor',
+        genderDivision: 'Co-ed',
+        ageRange: 'Ages 10–13',
+        motto: 'Eyes on Heaven',
+      });
+      addUnit({
+        orgId: created.id,
+        clubId: advClub.id,
+        name: `${shortName} Busy Bees`,
+        branch: 'Adventurers',
+        counselorName: 'Adventurer Leader',
+        genderDivision: 'Co-ed',
+        ageRange: 'Ages 6–9',
+        motto: 'Always Willing to Serve',
+      });
 
-    setShowAddChurchModal(false);
-    setNewChurchName('');
-    setNewClubName('');
-    setNewDirector('');
+      setShowAddChurchModal(false);
+      setNewChurchName('');
+      setNewClubName('');
+      setNewDirector('');
+    } catch (error) {
+      console.error('Failed to provision church clubs:', error);
+      alert('The church was created, but its default clubs could not be saved. Open that church in Settings and register the clubs again.');
+      setShowAddChurchModal(false);
+    }
   };
 
-  const handleCreateClub = (e: React.FormEvent) => {
+  const handleCreateClub = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClubEntityName.trim()) return;
+    if (!newClubEntityName.trim() || clubSaving) return;
 
-    addClub({
-      orgId: currentOrgId,
-      name: newClubEntityName.trim(),
-      clubType: newClubType,
-      directorName: newClubDirector.trim() || 'Club Director',
-      directorEmail: newClubDirectorEmail.trim() || undefined,
-      charterNumber: newClubCharter.trim() || `${newClubType.substring(0, 2).toUpperCase()}-CC-${Math.floor(1000 + Math.random() * 9000)}`,
-      meetingSchedule: newClubMeetingSchedule.trim() || currentOrg.meetingSchedule,
-      annualDues: Number(newClubAnnualDues) || 0,
-      motto: newClubMotto.trim() || undefined,
-    });
+    setClubSaveError('');
+    setClubSaving(true);
+    try {
+      const created = await addClub({
+        orgId: currentOrgId,
+        name: newClubEntityName.trim(),
+        clubType: newClubType,
+        directorName: newClubDirector.trim() || 'Club Director',
+        directorEmail: newClubDirectorEmail.trim() || undefined,
+        charterNumber: newClubCharter.trim() || `${newClubType.substring(0, 2).toUpperCase()}-CC-${Math.floor(1000 + Math.random() * 9000)}`,
+        meetingSchedule: newClubMeetingSchedule.trim() || currentOrg.meetingSchedule,
+        annualDues: Number(newClubAnnualDues) || 0,
+        motto: newClubMotto.trim() || undefined,
+      });
 
-    setShowAddClubModal(false);
-    setNewClubEntityName('');
-    setNewClubDirector('');
-    setNewClubDirectorEmail('');
-    setNewClubCharter('');
-    setNewClubMeetingSchedule('');
-    setNewClubMotto('');
+      setCurrentClubId(created.id);
+      setShowAddClubModal(false);
+      setNewClubEntityName('');
+      setNewClubDirector('');
+      setNewClubDirectorEmail('');
+      setNewClubCharter('');
+      setNewClubMeetingSchedule('');
+      setNewClubMotto('');
+    } catch (error) {
+      console.error('Failed to register club:', error);
+      const code = (error as { code?: string })?.code;
+      setClubSaveError(code === 'permission-denied'
+        ? 'The club could not be saved because access was denied. Check that you are signed in and try again.'
+        : 'The club could not be saved. Check your connection and try again.');
+    } finally {
+      setClubSaving(false);
+    }
   };
 
   const handleCreateUnit = (e: React.FormEvent) => {
@@ -1640,6 +1661,7 @@ export const SettingsPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowAddClubModal(false)}
+                disabled={clubSaving}
                 className="text-blue-200 hover:text-white cursor-pointer"
               >
                 ✕
@@ -1647,6 +1669,11 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateClub} className="p-6 space-y-4 text-xs">
+              {clubSaveError && (
+                <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">
+                  {clubSaveError}
+                </p>
+              )}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Club Name *</label>
                 <input
@@ -1748,6 +1775,7 @@ export const SettingsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddClubModal(false)}
+                  disabled={clubSaving}
                   className="px-4 py-2 text-slate-600 hover:text-slate-900 cursor-pointer"
                 >
                   Cancel
@@ -1755,8 +1783,9 @@ export const SettingsPage: React.FC = () => {
                 <button
                   type="submit"
                   className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-lg shadow-sm cursor-pointer"
+                  disabled={clubSaving}
                 >
-                  Register Club
+                  {clubSaving ? 'Saving Club…' : 'Register Club'}
                 </button>
               </div>
             </form>
