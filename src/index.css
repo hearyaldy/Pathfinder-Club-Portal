@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply antialiased text-slate-900 bg-slate-50;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Hide scrollbars for clean tab overflow bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* High-contrast Print Optimization for ID passes & Medical manifests */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  header, footer, nav, button, .no-print {
+    display: none !important;
+  }
+  
+  #printable-member-pass {
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid !important;
+  }
+}

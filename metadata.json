@@ -1,0 +1,6 @@
+{
+  "name": "Pathfinder & Adventurer Club Portal",
+  "description": "Membership registration portal, church leadership review and approval tracking, and real-time event attendance with QR code check-in.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
