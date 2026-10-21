@@ -1,31 +1,13 @@
-import React from 'react';
-import { 
-  Compass, 
-  UserPlus, 
-  ClipboardCheck, 
-  Clock, 
-  Users, 
-  Calendar, 
-  QrCode, 
-  Settings,
-  ShieldCheck,
-  ChevronDown,
-  MapPin,
-  Radio,
-  UserCog
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Compass, UserPlus, ClipboardCheck, Clock, Users, Calendar, QrCode,
+  Settings, ShieldCheck, ChevronDown, MapPin, UserCog,
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 
 export type ActiveTab =
-  | 'guest-home'
-  | 'member-hub'
-  | 'register'
-  | 'calendar'
-  | 'attendance'
-  | 'admin'
-  | 'directory'
-  | 'settings'
-  | 'super-admin';
+  | 'guest-home' | 'member-hub' | 'register' | 'calendar' | 'attendance'
+  | 'admin' | 'directory' | 'settings' | 'super-admin';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -35,361 +17,110 @@ interface NavbarProps {
   onOpenGeofenceModal: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ 
-  activeTab, 
-  setActiveTab, 
-  onOpenQrScanner,
-  onOpenAuthModal,
-  onOpenGeofenceModal,
+export const Navbar: React.FC<NavbarProps> = ({
+  activeTab, setActiveTab, onOpenQrScanner, onOpenAuthModal, onOpenGeofenceModal,
 }) => {
   const {
-    members,
-    currentOrg,
-    currentClub,
-    geofencedChurches,
-    setCurrentOrgId,
-    currentUser,
-    distanceToCurrentChurch,
-    isWithinCurrentChurchGeofence,
-    geoSettings
+    members, currentOrg, currentClub, geofencedChurches, setCurrentOrgId,
+    currentUser, distanceToCurrentChurch, geoSettings,
   } = useClub();
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const tools = useRef<HTMLDivElement>(null);
+  const toolsButton = useRef<HTMLButtonElement>(null);
+  const pendingCount = members.filter(member => member.registrationStatus === 'Pending Review').length;
+  const clubName = currentClub?.name ?? currentOrg.clubName;
 
-  const pendingCount = members.filter(m => m.registrationStatus === 'Pending Review').length;
+  useEffect(() => { setToolsOpen(false); }, [currentUser?.id, currentOrg.id, activeTab]);
+  useEffect(() => {
+    if (!toolsOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!tools.current?.contains(event.target as Node)) setToolsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setToolsOpen(false); toolsButton.current?.focus(); }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [toolsOpen]);
+
+  const openTool = (action: () => void) => { setToolsOpen(false); action(); };
+  const navItems: { id: ActiveTab; label: string; icon: typeof Compass; count?: number }[] = currentUser ? [
+    { id: 'attendance', label: 'Live Attendance', icon: Clock },
+    { id: 'admin', label: 'Church Review', icon: ClipboardCheck, count: pendingCount },
+    { id: 'directory', label: 'Members & Passes', icon: Users },
+    { id: 'register', label: 'Register', icon: UserPlus },
+    { id: 'calendar', label: 'Events', icon: Calendar },
+  ] : [
+    { id: 'guest-home', label: 'Church & Club', icon: Compass },
+    { id: 'member-hub', label: 'My Pass & Status', icon: QrCode },
+    { id: 'register', label: 'Register Youth', icon: UserPlus },
+    { id: 'calendar', label: 'Club Calendar', icon: Calendar },
+  ];
+  const toolClass = 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-900';
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-3 lg:gap-6 h-16">
-          {/* Zone 1: Brand Wordmark & Active Church Scope */}
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              aria-label="Home"
-              onClick={() => setActiveTab('guest-home')}
-              className="w-9 h-9 rounded-xl bg-blue-900 flex items-center justify-center text-amber-400 shadow-sm cursor-pointer hover:scale-105 transition-transform"
-              title="Home"
-            >
-              <Compass className="w-5 h-5" />
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-xs">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 min-w-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <button type="button" aria-label="Home" title="Home" onClick={() => setActiveTab('guest-home')}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-900 text-amber-400 shadow-sm hover:bg-blue-800">
+              <Compass className="h-5 w-5" />
             </button>
-            <div className="flex flex-col">
-              <button
-                type="button"
-                onClick={() => setActiveTab('guest-home')}
-                className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight whitespace-nowrap leading-tight cursor-pointer hover:text-blue-900 transition-colors"
-              >
-                {currentClub?.name ?? currentOrg.clubName}
+            <div className="min-w-0 flex-1">
+              <button type="button" title={clubName} onClick={() => setActiveTab('guest-home')}
+                className="block max-w-full truncate text-left text-xs font-extrabold leading-tight tracking-tight text-slate-900 hover:text-blue-900 sm:text-sm">
+                {clubName}
               </button>
-              <div className="flex items-center gap-1.5">
-                {/* Church Quick Selector */}
-                <select
-                  value={currentOrg.id}
-                  onChange={(e) => setCurrentOrgId(e.target.value)}
-                  className="text-[11px] text-slate-600 hover:text-blue-900 bg-transparent border-none p-0 pr-4 font-semibold focus:ring-0 cursor-pointer"
-                  title="Switch church & club"
-                >
-                  {geofencedChurches.map(org => (
-                    <option key={org.id} value={org.id}>
-                      {org.churchName.split(' ')[0]} {org.distanceMiles !== undefined ? `(${org.distanceMiles} mi)` : ''}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-slate-400 hidden sm:inline">
-                  · {currentOrg.districtName.split(' ')[0]}
-                </span>
-              </div>
+              <select value={currentOrg.id} onChange={event => setCurrentOrgId(event.target.value)} aria-label="Active church"
+                className="block max-w-full truncate border-none bg-transparent py-0 pr-4 text-[11px] font-semibold text-slate-600 focus:ring-0">
+                {geofencedChurches.map(org => <option key={org.id} value={org.id}>{org.churchName}{org.distanceMiles !== undefined ? ` (${org.distanceMiles} mi)` : ''}</option>)}
+              </select>
             </div>
           </div>
 
-          {/* Zone 2: Navigation Links (Strictly Role-Gated) */}
-          <nav className="hidden lg:flex items-center gap-1 sm:gap-1.5">
-            {!currentUser ? (
-              /* Public Guest Navigation */
-              <>
-                <button
-                  onClick={() => setActiveTab('guest-home')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'guest-home'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Compass className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Church & Club</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('member-hub')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'member-hub'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <QrCode className="w-3.5 h-3.5 text-amber-500" />
-                  <span>My Pass & Status</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('register')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'register'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>Register Youth</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('calendar')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'calendar'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Club Calendar</span>
-                </button>
-              </>
-            ) : (
-              /* Authorized Leadership Navigation */
-              <>
-                <button
-                  onClick={() => setActiveTab('attendance')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'attendance'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Live Attendance</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('admin')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 relative cursor-pointer ${
-                    activeTab === 'admin'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <ClipboardCheck className="w-3.5 h-3.5" />
-                  <span>Church Review</span>
-                  {pendingCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-slate-950 font-extrabold text-[10px] rounded-full">
-                      {pendingCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('directory')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'directory'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Members & Passes</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('register')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'register'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>Register</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('calendar')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'calendar'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Events</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('settings')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'settings'
-                      ? 'bg-blue-900 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>Settings & Levels</span>
-                </button>
-
-                {currentUser.role === 'Super Admin' && (
-                  <button
-                    onClick={() => setActiveTab('super-admin')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                      activeTab === 'super-admin'
-                        ? 'bg-blue-900 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <UserCog className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Manage Users</span>
-                  </button>
-                )}
-
-              </>
-            )}
-          </nav>
-
-          {/* Zone 3: Primary Actions, Geofencing Pill & User Auth */}
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Geofence Button Pill */}
-            <button
-              onClick={onOpenGeofenceModal}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                geoSettings.enabled
-                  ? 'border-blue-300 bg-blue-50 text-blue-950 hover:bg-blue-100'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-              title="Configure geofencing and location settings"
-            >
-              <MapPin className={`w-3.5 h-3.5 ${distanceToCurrentChurch !== null ? 'text-emerald-600' : 'text-blue-900'}`} />
-              <span className="hidden sm:inline font-mono">
-                {distanceToCurrentChurch !== null ? `${distanceToCurrentChurch} mi` : 'Geofence'}
-              </span>
-              <span className="sm:hidden">Geo</span>
+          <div ref={tools} className="relative shrink-0">
+            <button ref={toolsButton} type="button" aria-label="Account and tools" aria-expanded={toolsOpen} aria-controls="account-tools"
+              onClick={() => setToolsOpen(open => !open)}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${toolsOpen || activeTab === 'settings' || activeTab === 'super-admin' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden max-w-36 truncate sm:block">{currentUser ? currentUser.name : 'Sign in & tools'}</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
             </button>
-
-            {/* Quick QR Scanner Trigger */}
-            <button
-              onClick={onOpenQrScanner}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-950 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              title="Open camera QR check-in pass scanner"
-            >
-              <QrCode className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Scan QR</span>
-            </button>
-
-            {/* Auth Trigger */}
-            <button
-              onClick={onOpenAuthModal}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors shadow-2xs cursor-pointer ${
-                currentUser
-                  ? 'border-blue-900 bg-blue-50 text-blue-950 hover:bg-blue-100'
-                  : 'border-slate-300 bg-white text-slate-800 hover:border-blue-900'
-              }`}
-              title={currentUser ? 'Manage active session' : 'Sign in as Club Director or Church Leader'}
-            >
-              <ShieldCheck className={`w-3.5 h-3.5 ${currentUser ? 'text-blue-900' : 'text-slate-500'}`} />
-              <div className="text-left hidden lg:block">
-                <span className="block text-[11px] font-bold leading-tight truncate max-w-[110px]">
-                  {currentUser ? currentUser.name : 'Leader Sign In'}
-                </span>
-                <span className="block text-[9px] text-slate-500 leading-tight">
-                  {currentUser ? currentUser.role : 'Director / Staff'}
-                </span>
+            {toolsOpen && (
+              <div id="account-tools" className="absolute right-0 top-full z-50 mt-2 max-h-[calc(100dvh_-_5rem)] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                <div className="border-b border-slate-100 px-3 py-2.5">
+                  <p className="break-words text-sm font-bold text-slate-900">{currentUser?.name ?? 'Welcome'}</p>
+                  <p className="text-xs text-slate-500">{currentUser?.role ?? 'Guest / Parent'}</p>
+                </div>
+                <button type="button" onClick={() => openTool(onOpenQrScanner)} className={toolClass}><QrCode className="h-4 w-4 shrink-0 text-amber-600" />Scan QR</button>
+                <button type="button" onClick={() => openTool(onOpenGeofenceModal)} className={toolClass}>
+                  <MapPin className="h-4 w-4 shrink-0 text-blue-900" />
+                  <span>Location settings<span className="block text-xs font-normal text-slate-500">{distanceToCurrentChurch !== null ? `${distanceToCurrentChurch} mi from church` : geoSettings.enabled ? 'Geofencing enabled' : 'Geofencing disabled'}</span></span>
+                </button>
+                {currentUser && <button type="button" onClick={() => openTool(() => setActiveTab('settings'))} className={toolClass} aria-current={activeTab === 'settings' ? 'page' : undefined}><Settings className="h-4 w-4 shrink-0" />Settings & Levels</button>}
+                {currentUser?.role === 'Super Admin' && <button type="button" onClick={() => openTool(() => setActiveTab('super-admin'))} className={toolClass} aria-current={activeTab === 'super-admin' ? 'page' : undefined}><UserCog className="h-4 w-4 shrink-0" />Manage Users</button>}
+                <div className="mt-1 border-t border-slate-100 pt-1">
+                  <button type="button" onClick={() => openTool(onOpenAuthModal)} className={toolClass}><ShieldCheck className="h-4 w-4 shrink-0" />{currentUser ? 'Account & Sign Out' : 'Leader Sign In'}</button>
+                </div>
               </div>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
-            </button>
+            )}
           </div>
         </div>
 
-        {/* Mobile Navigation Bar */}
-        <div className="flex lg:hidden overflow-x-auto py-2 gap-2 border-t border-slate-100 no-scrollbar">
-          {!currentUser ? (
-            /* Mobile Guest Links */
-            <>
-              <button
-                onClick={() => setActiveTab('guest-home')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap ${
-                  activeTab === 'guest-home' ? 'bg-blue-900 text-white' : 'text-slate-700 bg-slate-100'
-                }`}
-              >
-                Church & Club
-              </button>
-              <button
-                onClick={() => setActiveTab('member-hub')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                  activeTab === 'member-hub' ? 'bg-blue-900 text-white' : 'text-slate-700 bg-slate-100'
-                }`}
-              >
-                My Pass & Status
-              </button>
-              <button
-                onClick={() => setActiveTab('register')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                  activeTab === 'register' ? 'bg-blue-900 text-white' : 'text-slate-700 bg-slate-100'
-                }`}
-              >
-                Register Youth
-              </button>
-              <button
-                onClick={() => setActiveTab('calendar')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                  activeTab === 'calendar' ? 'bg-blue-900 text-white' : 'text-slate-700 bg-slate-100'
-                }`}
-              >
-                Club Calendar
-              </button>
-            </>
-          ) : (
-            /* Mobile Leadership Links */
-            <>
-              <button
-                onClick={() => setActiveTab('attendance')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                  activeTab === 'attendance' ? 'bg-blue-900 text-white' : 'text-slate-600 bg-slate-100'
-                }`}
-              >
-                Live Attendance
-              </button>
-              <button
-                onClick={() => setActiveTab('admin')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap relative ${
-                  activeTab === 'admin' ? 'bg-blue-900 text-white' : 'text-slate-600 bg-slate-100'
-                }`}
-              >
-                Review {pendingCount > 0 ? `(${pendingCount})` : ''}
-              </button>
-              <button
-                onClick={() => setActiveTab('directory')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                  activeTab === 'directory' ? 'bg-blue-900 text-white' : 'text-slate-600 bg-slate-100'
-                }`}
-              >
-                Directory
-              </button>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                  activeTab === 'settings' ? 'bg-blue-900 text-white' : 'text-slate-600 bg-slate-100'
-                }`}
-              >
-                Settings
-              </button>
-              {currentUser.role === 'Super Admin' && (
-                <button
-                  onClick={() => setActiveTab('super-admin')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                    activeTab === 'super-admin' ? 'bg-blue-900 text-white' : 'text-slate-600 bg-slate-100'
-                  }`}
-                >
-                  Manage Users
-                </button>
-              )}
-            </>
-          )}
-        </div>
+        <nav aria-label="Main navigation" className="flex max-w-full gap-1 overflow-x-auto border-t border-slate-100 py-2 sm:flex-wrap sm:overflow-visible">
+          {navItems.map(({ id, label, icon: Icon, count }) => (
+            <button key={id} type="button" onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined}
+              className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${activeTab === id ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+              <Icon className="h-3.5 w-3.5" /><span>{label}</span>
+              {!!count && <span className="rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-blue-950">{count}</span>}
+            </button>
+          ))}
+        </nav>
       </div>
     </header>
   );
