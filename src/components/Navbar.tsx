@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   ChevronDown,
   MapPin,
-  Eye,
   Radio,
   UserCog
 } from 'lucide-react';
@@ -63,20 +62,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between gap-3 lg:gap-6 h-16">
           {/* Zone 1: Brand Wordmark & Active Church Scope */}
           <div className="flex items-center gap-3 shrink-0">
-            <div 
-              onClick={() => setActiveTab(currentUser ? 'attendance' : 'guest-home')} 
+            <button
+              type="button"
+              aria-label="Home"
+              onClick={() => setActiveTab('guest-home')}
               className="w-9 h-9 rounded-xl bg-blue-900 flex items-center justify-center text-amber-400 shadow-sm cursor-pointer hover:scale-105 transition-transform"
               title="Home"
             >
               <Compass className="w-5 h-5" />
-            </div>
+            </button>
             <div className="flex flex-col">
-              <span 
-                onClick={() => setActiveTab(currentUser ? 'attendance' : 'guest-home')} 
+              <button
+                type="button"
+                onClick={() => setActiveTab('guest-home')}
                 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight whitespace-nowrap leading-tight cursor-pointer hover:text-blue-900 transition-colors"
               >
                 {currentClub?.name ?? currentOrg.clubName}
-              </span>
+              </button>
               <div className="flex items-center gap-1.5">
                 {/* Church Quick Selector */}
                 <select
@@ -245,18 +247,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
 
-                <button
-                  onClick={() => setActiveTab('guest-home')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'guest-home'
-                      ? 'bg-slate-200 text-slate-900 font-bold'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                  title="Preview what guests & parents see"
-                >
-                  <Eye className="w-3.5 h-3.5 text-blue-900" />
-                  <span>Guest Portal View</span>
-                </button>
               </>
             )}
           </nav>
@@ -397,14 +387,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Manage Users
                 </button>
               )}
-              <button
-                onClick={() => setActiveTab('guest-home')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
-                  activeTab === 'guest-home' ? 'bg-slate-300 text-slate-900 font-bold' : 'text-slate-500 bg-slate-100'
-                }`}
-              >
-                Guest View
-              </button>
             </>
           )}
         </div>
