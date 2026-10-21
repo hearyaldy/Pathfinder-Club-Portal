@@ -14,11 +14,12 @@ import { MemberPassModal } from './components/MemberPassModal';
 import { AuthModal } from './components/AuthModal';
 import { GeofenceSettingsModal } from './components/GeofenceSettingsModal';
 import { MemberHub } from './components/MemberHub';
+import { SuperAdminPage } from './components/SuperAdminPage';
 import { Member } from './types/club';
 import { Compass, ShieldCheck, MapPin } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { currentOrg, currentUser, distanceToCurrentChurch, geoSettings } = useClub();
+  const { currentOrg, currentClub, currentUser, distanceToCurrentChurch, geoSettings } = useClub();
 
   // If user is logged in, start on attendance; if guest, start on public church welcome portal
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => 
@@ -31,7 +32,10 @@ const AppContent: React.FC = () => {
 
   // Safety Auto-Redirect: If user signs out while on a protected tab, instantly switch to public guest view
   useEffect(() => {
-    if (!currentUser && ['attendance', 'admin', 'directory', 'settings'].includes(activeTab)) {
+    if (!currentUser && ['attendance', 'admin', 'directory', 'settings', 'super-admin'].includes(activeTab)) {
+      setActiveTab('guest-home');
+    }
+    if (activeTab === 'super-admin' && currentUser?.role !== 'Super Admin') {
       setActiveTab('guest-home');
     }
   }, [currentUser, activeTab]);
@@ -142,6 +146,19 @@ const AppContent: React.FC = () => {
             />
           )
         )}
+
+        {/* 9. Platform User Management (Super Admin only) */}
+        {activeTab === 'super-admin' && (
+          currentUser?.role === 'Super Admin' ? (
+            <SuperAdminPage />
+          ) : (
+            <AccessRestricted
+              pageName="Platform User Management"
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              onGoToGuestHome={() => setActiveTab('guest-home')}
+            />
+          )
+        )}
       </main>
 
       {/* Global Modals */}
@@ -173,7 +190,7 @@ const AppContent: React.FC = () => {
               <Compass className="w-3.5 h-3.5" />
             </div>
             <span>
-              {currentOrg.clubName} · {currentOrg.churchName} ({currentOrg.districtName})
+              {currentClub?.name ?? currentOrg.clubName} · {currentOrg.churchName} ({currentOrg.districtName})
             </span>
           </div>
 

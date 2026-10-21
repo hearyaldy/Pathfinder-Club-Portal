@@ -8,9 +8,8 @@ import {
   Plus, 
   Users, 
   Compass, 
-  Download, 
-  RotateCcw, 
-  CheckCircle2, 
+  Download,
+  CheckCircle2,
   ChevronRight, 
   Globe2, 
   MapPin, 
@@ -23,30 +22,62 @@ import {
   UserCheck
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
-import { ChurchOrganization, UserRole, ClubUnit, ClubBranch } from '../types/club';
+import { ChurchOrganization, UserRole, ClubUnit, ClubBranch, ClubEntity, ClubType } from '../types/club';
 
 export const SettingsPage: React.FC = () => {
-  const { 
-    organizations, 
-    currentOrgId, 
-    currentOrg, 
-    setCurrentOrgId, 
-    updateOrganization, 
-    addOrganization, 
-    staffUsers, 
-    currentUser, 
-    units, 
-    addUnit, 
-    updateUnit, 
-    deleteUnit, 
-    members, 
+  const {
+    organizations,
+    currentOrgId,
+    currentOrg,
+    setCurrentOrgId,
+    updateOrganization,
+    addOrganization,
+    staffUsers,
+    currentUser,
+    clubs,
+    currentClubId,
+    currentClub,
+    setCurrentClubId,
+    addClub,
+    deleteClub,
+    divisions,
+    allDivisions,
+    addDivision,
+    deleteDivision,
+    units,
+    allUnits,
+    addUnit,
+    updateUnit,
+    deleteUnit,
+    members,
     assignUnit,
-    getDistrictRollupStats, 
-    exportDatabaseJson, 
-    resetToDefaults 
+    getDistrictRollupStats,
+    exportDatabaseJson,
   } = useClub();
 
-  const [activeTab, setActiveTab] = useState<'units' | 'hierarchy' | 'profile' | 'policy' | 'district' | 'staff' | 'permissions'>('units');
+  const [activeTab, setActiveTab] = useState<'clubs' | 'units' | 'hierarchy' | 'profile' | 'policy' | 'district' | 'staff' | 'permissions'>('clubs');
+  const [showAddClubModal, setShowAddClubModal] = useState(false);
+  const [showAddDivisionModal, setShowAddDivisionModal] = useState(false);
+
+  // New Club Entity Form State
+  const [newClubEntityName, setNewClubEntityName] = useState('');
+  const [newClubType, setNewClubType] = useState<ClubType>('Pathfinder');
+  const [newClubDirector, setNewClubDirector] = useState('');
+  const [newClubDirectorEmail, setNewClubDirectorEmail] = useState('');
+  const [newClubCharter, setNewClubCharter] = useState('');
+  const [newClubMeetingSchedule, setNewClubMeetingSchedule] = useState('');
+  const [newClubAnnualDues, setNewClubAnnualDues] = useState(30);
+  const [newClubMotto, setNewClubMotto] = useState('');
+
+  // New Division Form State
+  const [newDivisionName, setNewDivisionName] = useState('');
+  const [newDivisionAgeRange, setNewDivisionAgeRange] = useState('');
+  const [newDivisionLeaderName, setNewDivisionLeaderName] = useState('');
+  const [newDivisionLeaderPhone, setNewDivisionLeaderPhone] = useState('');
+
+  // New Unit Form: optional Division assignment
+  const [newUnitDivisionId, setNewUnitDivisionId] = useState('');
+
   const [unitBranchFilter, setUnitBranchFilter] = useState<'All' | 'Pathfinders' | 'Adventurers'>('All');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showAddChurchModal, setShowAddChurchModal] = useState(false);
@@ -63,7 +94,6 @@ export const SettingsPage: React.FC = () => {
 
   // Editable Form State for Current Organization
   const [churchName, setChurchName] = useState(currentOrg.churchName);
-  const [clubName, setClubName] = useState(currentOrg.clubName);
   const [districtName, setDistrictName] = useState(currentOrg.districtName);
   const [missionName, setMissionName] = useState(currentOrg.missionName);
   const [charterNumber, setCharterNumber] = useState(currentOrg.charterNumber);
@@ -86,7 +116,6 @@ export const SettingsPage: React.FC = () => {
   // Sync state when org switcher changes
   React.useEffect(() => {
     setChurchName(currentOrg.churchName);
-    setClubName(currentOrg.clubName);
     setDistrictName(currentOrg.districtName);
     setMissionName(currentOrg.missionName);
     setCharterNumber(currentOrg.charterNumber);
@@ -104,7 +133,6 @@ export const SettingsPage: React.FC = () => {
     e.preventDefault();
     updateOrganization(currentOrgId, {
       churchName,
-      clubName,
       districtName,
       missionName,
       charterNumber,
@@ -147,10 +175,31 @@ export const SettingsPage: React.FC = () => {
       contactEmail: 'club@church.org',
     });
 
-    // Auto-provision default units for the new church
+    // Auto-provision one Pathfinder club and one Adventurer club for the new church
     const shortName = newChurchName.trim().split(' ')[0];
+    const pfClub = addClub({
+      orgId: created.id,
+      name: newClubName.trim() || `${shortName} Pathfinder Club`,
+      clubType: 'Pathfinder',
+      directorName: newDirector.trim() || 'New Director, MG',
+      charterNumber: created.charterNumber,
+      meetingSchedule: created.meetingSchedule,
+      annualDues: created.annualDuesAmount,
+    });
+    const advClub = addClub({
+      orgId: created.id,
+      name: `${shortName} Adventurer Club`,
+      clubType: 'Adventurer',
+      directorName: 'Adventurer Leader',
+      charterNumber: `ADV-CC-${Math.floor(1000 + Math.random() * 9000)}`,
+      meetingSchedule: created.meetingSchedule,
+      annualDues: Math.round(created.annualDuesAmount * 0.7),
+    });
+
+    // Auto-provision a default unit under each club
     addUnit({
       orgId: created.id,
+      clubId: pfClub.id,
       name: `${shortName} Falcons`,
       branch: 'Pathfinders',
       counselorName: newDirector.trim() || 'Unit Counselor',
@@ -160,6 +209,7 @@ export const SettingsPage: React.FC = () => {
     });
     addUnit({
       orgId: created.id,
+      clubId: advClub.id,
       name: `${shortName} Busy Bees`,
       branch: 'Adventurers',
       counselorName: 'Adventurer Leader',
@@ -174,12 +224,38 @@ export const SettingsPage: React.FC = () => {
     setNewDirector('');
   };
 
+  const handleCreateClub = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClubEntityName.trim()) return;
+
+    addClub({
+      orgId: currentOrgId,
+      name: newClubEntityName.trim(),
+      clubType: newClubType,
+      directorName: newClubDirector.trim() || 'Club Director',
+      directorEmail: newClubDirectorEmail.trim() || undefined,
+      charterNumber: newClubCharter.trim() || `${newClubType.substring(0, 2).toUpperCase()}-CC-${Math.floor(1000 + Math.random() * 9000)}`,
+      meetingSchedule: newClubMeetingSchedule.trim() || currentOrg.meetingSchedule,
+      annualDues: Number(newClubAnnualDues) || 0,
+      motto: newClubMotto.trim() || undefined,
+    });
+
+    setShowAddClubModal(false);
+    setNewClubEntityName('');
+    setNewClubDirector('');
+    setNewClubDirectorEmail('');
+    setNewClubCharter('');
+    setNewClubMeetingSchedule('');
+    setNewClubMotto('');
+  };
+
   const handleCreateUnit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUnitName.trim()) return;
 
     addUnit({
       orgId: currentOrgId,
+      divisionId: newUnitDivisionId || undefined,
       name: newUnitName.trim(),
       branch: newUnitBranch,
       counselorName: newCounselorName.trim() || 'Unit Counselor',
@@ -194,6 +270,27 @@ export const SettingsPage: React.FC = () => {
     setNewCounselorName('');
     setNewCounselorPhone('');
     setNewMotto('');
+    setNewUnitDivisionId('');
+  };
+
+  const handleCreateDivision = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDivisionName.trim() || !currentClubId) return;
+
+    addDivision({
+      orgId: currentOrgId,
+      clubId: currentClubId,
+      name: newDivisionName.trim(),
+      ageRange: newDivisionAgeRange.trim() || undefined,
+      leaderName: newDivisionLeaderName.trim() || undefined,
+      leaderPhone: newDivisionLeaderPhone.trim() || undefined,
+    });
+
+    setShowAddDivisionModal(false);
+    setNewDivisionName('');
+    setNewDivisionAgeRange('');
+    setNewDivisionLeaderName('');
+    setNewDivisionLeaderPhone('');
   };
 
   const districtStats = getDistrictRollupStats(currentOrg.districtId);
@@ -232,19 +329,37 @@ export const SettingsPage: React.FC = () => {
             <Plus className="w-3.5 h-3.5" />
             <span>Add Church</span>
           </button>
+
+          {clubs.length > 0 && (
+            <>
+              <span className="text-xs text-slate-500 font-medium">Active Club:</span>
+              <select
+                value={currentClubId}
+                onChange={(e) => setCurrentClubId(e.target.value)}
+                className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg shadow-xs text-slate-900 focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+              >
+                {clubs.map(club => (
+                  <option key={club.id} value={club.id}>
+                    {club.name} ({club.clubType})
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
       {/* Settings Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto no-scrollbar">
         {[
-          { id: 'units', label: '1. Register Club Units', icon: Compass },
-          { id: 'permissions', label: '2. Tier Data Access Matrix', icon: ShieldCheck },
-          { id: 'hierarchy', label: '3. Administrative Levels & Multi-Church', icon: Layers },
-          { id: 'profile', label: '4. Church & Club Profile', icon: Building2 },
-          { id: 'policy', label: '5. Registration & Fee Policies', icon: DollarSign },
-          { id: 'district', label: '6. District Coordinator Rollup', icon: Globe2 },
-          { id: 'staff', label: '7. Leadership Directory', icon: Users },
+          { id: 'clubs', label: '1. Register Clubs', icon: Building2 },
+          { id: 'units', label: '2. Register Club Units', icon: Compass },
+          { id: 'permissions', label: '3. Tier Data Access Matrix', icon: ShieldCheck },
+          { id: 'hierarchy', label: '4. Administrative Levels & Multi-Church', icon: Layers },
+          { id: 'profile', label: '5. Church & Club Profile', icon: Building2 },
+          { id: 'policy', label: '6. Registration & Fee Policies', icon: DollarSign },
+          { id: 'district', label: '7. District Coordinator Rollup', icon: Globe2 },
+          { id: 'staff', label: '8. Leadership Directory', icon: Users },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -264,7 +379,149 @@ export const SettingsPage: React.FC = () => {
         })}
       </div>
 
-      {/* TAB 1: Register Club Units */}
+      {/* TAB 1: Register Clubs */}
+      {activeTab === 'clubs' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+              <div>
+                <span className="text-xs font-bold text-blue-900 uppercase tracking-wider block">
+                  Club Registration
+                </span>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Clubs Registered at {currentOrg.churchName}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  A church can sponsor more than one club (Pathfinder, Adventurer, Master Guide, etc.) — each with its own director, charter, dues, and meeting schedule.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddClubModal(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4 text-amber-400" />
+                <span>Register New Club</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {clubs.map((club) => (
+                <div
+                  key={club.id}
+                  className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4 flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-900">
+                          {club.clubType}
+                        </span>
+                        <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
+                          {club.name}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete club "${club.name}"? Its units will become unassigned.`)) {
+                            deleteClub(club.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Delete club"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {club.motto && (
+                      <div className="p-2.5 bg-slate-50 rounded-xl text-xs text-slate-600 italic border border-slate-100">
+                        Club Motto: "{club.motto}"
+                      </div>
+                    )}
+
+                    <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 text-xs text-blue-950 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-blue-900 text-amber-400 flex items-center justify-center font-bold text-xs">
+                          {club.directorName[0]}
+                        </div>
+                        <div>
+                          <strong className="block text-slate-900">{club.directorName}</strong>
+                          <span className="text-[11px] text-slate-500">Club Director</span>
+                        </div>
+                      </div>
+                      {club.directorPhone && (
+                        <span className="text-[11px] font-mono text-slate-600">
+                          {club.directorPhone}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-slate-500 block">Charter Number</span>
+                        <span className="font-mono font-semibold text-slate-800">{club.charterNumber}</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-slate-500 block">Annual Dues</span>
+                        <span className="font-semibold text-slate-800">${club.annualDues}</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100 col-span-2">
+                        <span className="text-slate-500 block">Meeting Schedule</span>
+                        <span className="font-semibold text-slate-800">{club.meetingSchedule}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-1 text-[11px] text-slate-500">
+                      {allUnits.filter(u => u.clubId === club.id).length} unit(s) ·{' '}
+                      {members.filter(m => m.clubId === club.id).length} member(s)
+                    </div>
+
+                    {(() => {
+                      const clubDivisions = allDivisions.filter(d => d.clubId === club.id);
+                      const clubUnits = allUnits.filter(u => u.clubId === club.id);
+                      const ungroupedCount = clubUnits.filter(u => !u.divisionId).length;
+                      if (clubDivisions.length === 0) return null;
+                      return (
+                        <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 text-[10px]">
+                          {clubDivisions.map(div => (
+                            <span key={div.id} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
+                              {div.name} ({clubUnits.filter(u => u.divisionId === div.id).length} units)
+                            </span>
+                          ))}
+                          {ungroupedCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 font-medium border border-slate-200">
+                              {ungroupedCount} unit(s) ungrouped
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {clubs.length === 0 && (
+              <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <Building2 className="w-10 h-10 text-slate-400 mx-auto" />
+                <h3 className="text-base font-bold text-slate-900">No Clubs Registered Yet</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Register your first club (e.g. a Pathfinder club or Adventurer club) under {currentOrg.churchName}.
+                </p>
+                <button
+                  onClick={() => setShowAddClubModal(true)}
+                  className="px-4 py-2 bg-blue-900 text-white font-bold text-xs rounded-xl shadow-xs"
+                >
+                  Register First Club
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: Register Club Units */}
       {activeTab === 'units' && (
         <div className="space-y-6">
           <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-xs space-y-6">
@@ -274,7 +531,7 @@ export const SettingsPage: React.FC = () => {
                   Patrol & Counselor Management
                 </span>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Registered Units for {currentOrg.clubName}
+                  Registered Units for {currentClub?.name ?? currentOrg.clubName}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Units are small patrols of 6–8 youth led by a Counselor for weekly curriculum, marching drill, and camporee honors.
@@ -288,6 +545,52 @@ export const SettingsPage: React.FC = () => {
                 <Plus className="w-4 h-4 text-amber-400" />
                 <span>Register New Unit</span>
               </button>
+            </div>
+
+            {/* Divisions: optional grouping of units within this club */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-slate-800">Divisions in this club</span>
+                  <p className="text-[11px] text-slate-500">
+                    Optional — group units together (e.g. a Teen Division and a Junior Division) if this club is large enough to need it.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddDivisionModal(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-slate-800 shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Division</span>
+                </button>
+              </div>
+
+              {divisions.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {divisions.map(div => (
+                    <div
+                      key={div.id}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px]"
+                    >
+                      <span className="font-bold text-slate-900">{div.name}</span>
+                      {div.ageRange && <span className="text-slate-500">{div.ageRange}</span>}
+                      <span className="text-slate-400">·</span>
+                      <span className="text-slate-600">{units.filter(u => u.divisionId === div.id).length} unit(s)</span>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete division "${div.name}"? Its units become ungrouped.`)) {
+                            deleteDivision(div.id);
+                          }
+                        }}
+                        className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                        title="Delete division"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* KPI summary */}
@@ -774,7 +1077,7 @@ export const SettingsPage: React.FC = () => {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
                     Tier 4 · Club Directorate
                   </span>
-                  <h3 className="font-bold text-sm text-emerald-950 mt-1">{currentOrg.clubName}</h3>
+                  <h3 className="font-bold text-sm text-emerald-950 mt-1">{currentClub?.name ?? currentOrg.clubName}</h3>
                   <p className="text-[11px] text-emerald-800 mt-2 leading-relaxed">
                     Manages online member applications, verifies dues payment, orders uniforms, conducts investitures and live attendance.
                   </p>
@@ -878,17 +1181,6 @@ export const SettingsPage: React.FC = () => {
                 required
                 value={churchName}
                 onChange={(e) => setChurchName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Club Official Name *</label>
-              <input
-                type="text"
-                required
-                value={clubName}
-                onChange={(e) => setClubName(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
               />
             </div>
@@ -1226,7 +1518,7 @@ export const SettingsPage: React.FC = () => {
             Organization Data & Backups
           </h4>
           <p className="text-xs text-slate-500 mt-0.5">
-            Export all multi-church records as JSON or reset demo instances.
+            Export all multi-church records as JSON.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1236,17 +1528,6 @@ export const SettingsPage: React.FC = () => {
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export Database JSON</span>
-          </button>
-          <button
-            onClick={() => {
-              if (window.confirm('Reset all demo church organizations, members, and events?')) {
-                resetToDefaults();
-              }
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-800 rounded-lg transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Demo Data</span>
           </button>
         </div>
       </div>
@@ -1345,6 +1626,231 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Add Club Modal */}
+      {showAddClubModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden">
+            <div className="px-6 py-4 bg-blue-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="font-bold text-sm">Register New Club</h3>
+                  <p className="text-[11px] text-blue-200">{currentOrg.churchName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddClubModal(false)}
+                className="text-blue-200 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateClub} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Club Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newClubEntityName}
+                  onChange={(e) => setNewClubEntityName(e.target.value)}
+                  placeholder="e.g. Grace Wolverines Pathfinder Club"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Club Type *</label>
+                  <select
+                    value={newClubType}
+                    onChange={(e) => setNewClubType(e.target.value as ClubType)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                  >
+                    <option value="Pathfinder">Pathfinder</option>
+                    <option value="Adventurer">Adventurer</option>
+                    <option value="Master Guide">Master Guide</option>
+                    <option value="Ambassador">Ambassador</option>
+                    <option value="Eager Beaver">Eager Beaver</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Annual Dues ($)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={newClubAnnualDues}
+                    onChange={(e) => setNewClubAnnualDues(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Club Director Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newClubDirector}
+                    onChange={(e) => setNewClubDirector(e.target.value)}
+                    placeholder="e.g. Isaac Chen, MG"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Director Email</label>
+                  <input
+                    type="email"
+                    value={newClubDirectorEmail}
+                    onChange={(e) => setNewClubDirectorEmail(e.target.value)}
+                    placeholder="director@church.org"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Charter Number</label>
+                  <input
+                    type="text"
+                    value={newClubCharter}
+                    onChange={(e) => setNewClubCharter(e.target.value)}
+                    placeholder="Auto-generated if left blank"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Meeting Schedule</label>
+                  <input
+                    type="text"
+                    value={newClubMeetingSchedule}
+                    onChange={(e) => setNewClubMeetingSchedule(e.target.value)}
+                    placeholder="Defaults to church schedule"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Club Motto</label>
+                <input
+                  type="text"
+                  value={newClubMotto}
+                  onChange={(e) => setNewClubMotto(e.target.value)}
+                  placeholder="e.g. The Love of Christ Compels Us"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddClubModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-900 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-lg shadow-sm cursor-pointer"
+                >
+                  Register Club
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Division Modal */}
+      {showAddDivisionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+            <div className="px-6 py-4 bg-blue-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="font-bold text-sm">Register New Division</h3>
+                  <p className="text-[11px] text-blue-200">{currentClub?.name ?? currentOrg.clubName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddDivisionModal(false)}
+                className="text-blue-200 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDivision} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Division Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newDivisionName}
+                  onChange={(e) => setNewDivisionName(e.target.value)}
+                  placeholder="e.g. Teen Division, Junior Division"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Age Range</label>
+                  <input
+                    type="text"
+                    value={newDivisionAgeRange}
+                    onChange={(e) => setNewDivisionAgeRange(e.target.value)}
+                    placeholder="e.g. Ages 13–15"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Division Leader</label>
+                  <input
+                    type="text"
+                    value={newDivisionLeaderName}
+                    onChange={(e) => setNewDivisionLeaderName(e.target.value)}
+                    placeholder="Leader name"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Leader Phone</label>
+                <input
+                  type="tel"
+                  value={newDivisionLeaderPhone}
+                  onChange={(e) => setNewDivisionLeaderPhone(e.target.value)}
+                  placeholder="(555) 000-0000"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-mono"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDivisionModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-900 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-lg shadow-sm cursor-pointer"
+                >
+                  Register Division
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Add Unit Modal */}
       {showAddUnitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
@@ -1354,7 +1860,7 @@ export const SettingsPage: React.FC = () => {
                 <Compass className="w-5 h-5 text-amber-400" />
                 <div>
                   <h3 className="font-bold text-sm">Register New Club Unit</h3>
-                  <p className="text-[11px] text-blue-200">{currentOrg.clubName}</p>
+                  <p className="text-[11px] text-blue-200">{currentClub?.name ?? currentOrg.clubName}</p>
                 </div>
               </div>
               <button 
@@ -1377,6 +1883,22 @@ export const SettingsPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
                 />
               </div>
+
+              {divisions.length > 0 && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Division (optional)</label>
+                  <select
+                    value={newUnitDivisionId}
+                    onChange={(e) => setNewUnitDivisionId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                  >
+                    <option value="">No division</option>
+                    {divisions.map(div => (
+                      <option key={div.id} value={div.id}>{div.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

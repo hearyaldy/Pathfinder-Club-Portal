@@ -11,6 +11,7 @@ import {
   UserCheck 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import heroBanner from '../assets/images/pathfinder_hero_banner_1792569497907.jpg';
 import { useClub } from '../context/ClubContext';
 import { ClubBranch, Member } from '../types/club';
 
@@ -330,7 +331,7 @@ export const RegisterMember: React.FC<RegisterMemberProps> = ({
           </div>
           <div className="hidden md:block relative h-full min-h-[180px]">
             <img 
-              src="/src/assets/images/pathfinder_hero_banner_1792569497907.jpg" 
+              src={heroBanner}
               alt="Pathfinders in uniform outdoors"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"

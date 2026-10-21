@@ -42,7 +42,7 @@ export const GuestPortal: React.FC<GuestPortalProps> = ({
   onOpenAuthModal,
   onViewPass,
 }) => {
-  const { currentOrg, organizations, setCurrentOrgId, events, members, units } = useClub();
+  const { currentOrg, currentClub, organizations, setCurrentOrgId, events, members, units } = useClub();
 
   // Quick lookup state on guest home
   const [quickSearch, setQuickSearch] = useState('');
@@ -135,7 +135,7 @@ export const GuestPortal: React.FC<GuestPortalProps> = ({
                 {currentOrg.churchName} · {currentOrg.districtName}
               </span>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
-                {currentOrg.clubName}
+                {currentClub?.name ?? currentOrg.clubName}
               </h1>
               <p className="text-sm sm:text-base text-blue-100 max-w-2xl leading-relaxed">
                 Welcome to our church membership portal. We build youth character, leadership, outdoor survival skills, and Christian service for young people from age 4 to 15.
@@ -422,7 +422,7 @@ export const GuestPortal: React.FC<GuestPortalProps> = ({
                 <span>Upcoming Club Schedule</span>
               </div>
               <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Public Calendar & Events for {currentOrg.clubName}
+                Public Calendar & Events for {currentClub?.name ?? currentOrg.clubName}
               </h2>
               <p className="text-xs text-slate-500">
                 Parents, youth, and visitors can see our meeting schedule and campout dates.

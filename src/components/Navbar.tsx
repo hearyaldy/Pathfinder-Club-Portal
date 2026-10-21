@@ -7,24 +7,26 @@ import {
   Users, 
   Calendar, 
   QrCode, 
-  Settings, 
-  ShieldCheck, 
+  Settings,
+  ShieldCheck,
   ChevronDown,
   MapPin,
   Eye,
-  Radio
+  Radio,
+  UserCog
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 
-export type ActiveTab = 
-  | 'guest-home' 
-  | 'member-hub' 
-  | 'register' 
-  | 'calendar' 
-  | 'attendance' 
-  | 'admin' 
-  | 'directory' 
-  | 'settings';
+export type ActiveTab =
+  | 'guest-home'
+  | 'member-hub'
+  | 'register'
+  | 'calendar'
+  | 'attendance'
+  | 'admin'
+  | 'directory'
+  | 'settings'
+  | 'super-admin';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -41,11 +43,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuthModal,
   onOpenGeofenceModal,
 }) => {
-  const { 
-    members, 
-    currentOrg, 
-    geofencedChurches, 
-    setCurrentOrgId, 
+  const {
+    members,
+    currentOrg,
+    currentClub,
+    geofencedChurches,
+    setCurrentOrgId,
     currentUser,
     distanceToCurrentChurch,
     isWithinCurrentChurchGeofence,
@@ -72,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab(currentUser ? 'attendance' : 'guest-home')} 
                 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight whitespace-nowrap leading-tight cursor-pointer hover:text-blue-900 transition-colors"
               >
-                {currentOrg.clubName}
+                {currentClub?.name ?? currentOrg.clubName}
               </span>
               <div className="flex items-center gap-1.5">
                 {/* Church Quick Selector */}
@@ -96,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Zone 2: Navigation Links (Strictly Role-Gated) */}
-          <nav className="hidden md:flex items-center gap-1 sm:gap-1.5">
+          <nav className="hidden lg:flex items-center gap-1 sm:gap-1.5">
             {!currentUser ? (
               /* Public Guest Navigation */
               <>
@@ -228,6 +231,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>Settings & Levels</span>
                 </button>
 
+                {currentUser.role === 'Super Admin' && (
+                  <button
+                    onClick={() => setActiveTab('super-admin')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      activeTab === 'super-admin'
+                        ? 'bg-blue-900 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <UserCog className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Manage Users</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setActiveTab('guest-home')}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
@@ -298,7 +315,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Mobile Navigation Bar */}
-        <div className="flex md:hidden overflow-x-auto py-2 gap-2 border-t border-slate-100 no-scrollbar">
+        <div className="flex lg:hidden overflow-x-auto py-2 gap-2 border-t border-slate-100 no-scrollbar">
           {!currentUser ? (
             /* Mobile Guest Links */
             <>
@@ -370,6 +387,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Settings
               </button>
+              {currentUser.role === 'Super Admin' && (
+                <button
+                  onClick={() => setActiveTab('super-admin')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${
+                    activeTab === 'super-admin' ? 'bg-blue-900 text-white' : 'text-slate-600 bg-slate-100'
+                  }`}
+                >
+                  Manage Users
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('guest-home')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${

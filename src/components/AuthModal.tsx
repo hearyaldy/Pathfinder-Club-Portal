@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  ShieldCheck, 
-  Lock, 
-  Mail, 
-  UserPlus, 
-  CheckCircle2, 
-  Compass, 
-  Building2, 
-  Sparkles, 
-  LogOut, 
-  Layers 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import {
+  X,
+  ShieldCheck,
+  UserPlus,
+  LogIn,
+  LogOut,
+  Compass,
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
+import { auth, db } from '../firebase';
 import { AuthUser, UserRole } from '../types/club';
 
 interface AuthModalProps {
@@ -20,48 +22,91 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
+function friendlyAuthError(err: unknown): string {
+  const code = (err as { code?: string } | undefined)?.code;
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'An account with that email already exists — try signing in instead.';
+    case 'auth/invalid-email':
+      return 'That email address looks invalid.';
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+      return 'Incorrect email or password.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}
+
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { 
-    currentUser, 
-    staffUsers, 
-    organizations, 
-    currentOrgId, 
-    setCurrentOrgId, 
-    loginUser, 
-    logoutUser, 
-    registerLeader 
-  } = useClub();
+  const { currentUser, organizations, currentOrgId } = useClub();
 
-  const [activeTab, setActiveTab] = useState<'switch' | 'register'>('switch');
+  const [activeTab, setActiveTab] = useState<'signin' | 'register'>('signin');
 
-  // Registration Form State
+  // Sign-in form state
+  const [signInEmail, setSignInEmail] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
+  const [signInError, setSignInError] = useState('');
+  const [signInLoading, setSignInLoading] = useState(false);
+
+  // Registration form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>('Club Director');
   const [selectedOrgId, setSelectedOrgId] = useState(currentOrgId);
   const [isMasterGuide, setIsMasterGuide] = useState(true);
+  const [registerError, setRegisterError] = useState('');
+  const [registerLoading, setRegisterLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) return;
-
-    registerLeader({
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      role,
-      orgId: selectedOrgId,
-      investedMasterGuide: isMasterGuide,
-    });
-
-    onClose();
+    setSignInError('');
+    setSignInLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, signInEmail.trim(), signInPassword);
+      onClose();
+    } catch (err) {
+      setSignInError(friendlyAuthError(err));
+    } finally {
+      setSignInLoading(false);
+    }
   };
 
-  const handleSelectUser = (user: AuthUser) => {
-    loginUser(user);
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || password.length < 6) {
+      setRegisterError('Please fill in your name, email, and a password of at least 6 characters.');
+      return;
+    }
+    setRegisterError('');
+    setRegisterLoading(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const profile: Omit<AuthUser, 'id'> = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role,
+        orgId: selectedOrgId,
+        investedMasterGuide: isMasterGuide,
+      };
+      await setDoc(doc(db, 'users', cred.user.uid), profile);
+      onClose();
+    } catch (err) {
+      setRegisterError(friendlyAuthError(err));
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
     onClose();
   };
 
@@ -100,9 +145,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               </span>
             </div>
             <button
-              onClick={() => {
-                logoutUser();
-              }}
+              onClick={handleSignOut}
               className="text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -114,15 +157,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         {/* Tab switcher */}
         <div className="flex border-b border-slate-200 px-6 pt-3 gap-4 text-xs font-semibold">
           <button
-            onClick={() => setActiveTab('switch')}
+            onClick={() => setActiveTab('signin')}
             className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 ${
-              activeTab === 'switch'
+              activeTab === 'signin'
                 ? 'border-blue-900 text-blue-900'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            <Layers className="w-4 h-4" />
-            <span>Select Leadership Role</span>
+            <LogIn className="w-4 h-4" />
+            <span>Sign In</span>
           </button>
 
           <button
@@ -140,70 +183,50 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-4">
-          {activeTab === 'switch' ? (
-            <div className="space-y-3">
+          {activeTab === 'signin' ? (
+            <form onSubmit={handleSignIn} className="space-y-4 text-xs">
               <p className="text-xs text-slate-500">
-                Select an authentic leader profile to experience how different administrative levels see the portal:
+                Sign in with your leader email & password to access attendance, member review, and settings.
               </p>
 
-              <div className="space-y-2">
-                {staffUsers.map((user) => {
-                  const org = organizations.find(o => o.id === user.orgId);
-                  const isCurrent = currentUser?.id === user.id;
+              {signInError && (
+                <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs">
+                  {signInError}
+                </div>
+              )}
 
-                  return (
-                    <div
-                      key={user.id}
-                      onClick={() => handleSelectUser(user)}
-                      className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
-                        isCurrent
-                          ? 'border-blue-900 bg-blue-50/50 ring-2 ring-blue-100'
-                          : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs ${
-                          user.role === 'Mission Youth Director'
-                            ? 'bg-purple-100 text-purple-900'
-                            : user.role === 'District Coordinator'
-                            ? 'bg-amber-100 text-amber-900'
-                            : user.role === 'Club Director'
-                            ? 'bg-blue-100 text-blue-900'
-                            : 'bg-emerald-100 text-emerald-900'
-                        }`}>
-                          {user.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 text-sm">{user.name}</span>
-                            {user.investedMasterGuide && (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-100 text-amber-900">
-                                Master Guide
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-slate-500 block">{user.email}</span>
-                          <span className="text-[11px] text-slate-600 block mt-0.5">
-                            {user.role} · {user.role.includes('Mission') ? 'Cascade Mission' : org?.churchName}
-                          </span>
-                        </div>
-                      </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={signInEmail}
+                  onChange={(e) => setSignInEmail(e.target.value)}
+                  placeholder="leader@sda.org"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                />
+              </div>
 
-                      <div className="text-right">
-                        {isCurrent ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Active
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1 text-xs font-semibold text-blue-900 hover:underline">
-                            Switch Role →
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Password *</label>
+                <input
+                  type="password"
+                  required
+                  value={signInPassword}
+                  onChange={(e) => setSignInPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={signInLoading}
+                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-60 text-white font-semibold rounded-lg shadow-sm"
+                >
+                  {signInLoading ? 'Signing In…' : 'Sign In'}
+                </button>
               </div>
 
               {/* Hierarchy explanation card */}
@@ -216,10 +239,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <strong>Mission/Conference</strong> oversees District Charters & Insurance · <strong>District</strong> unites local church clubs for joint rallies & camporees · <strong>Church Pastor & Board</strong> sponsors the club · <strong>Club Director</strong> manages roster, attendance & uniform inductions · <strong>Counselors</strong> lead individual units.
                 </p>
               </div>
-            </div>
+            </form>
           ) : (
             /* Register Leader Form */
             <form onSubmit={handleRegister} className="space-y-4 text-xs">
+              {registerError && (
+                <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs">
+                  {registerError}
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Full Name & Title *
@@ -250,6 +279,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
                     Phone Number
                   </label>
                   <input
@@ -260,9 +306,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-mono"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Administrative Level & Role
@@ -280,23 +323,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     <option value="Mission Youth Director">Mission / Conference Youth Director</option>
                   </select>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Assigned Church / Club
-                  </label>
-                  <select
-                    value={selectedOrgId}
-                    onChange={(e) => setSelectedOrgId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
-                  >
-                    {organizations.map(org => (
-                      <option key={org.id} value={org.id}>
-                        {org.churchName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Assigned Church / Club
+                </label>
+                <select
+                  value={selectedOrgId}
+                  onChange={(e) => setSelectedOrgId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                >
+                  {organizations.map(org => (
+                    <option key={org.id} value={org.id}>
+                      {org.churchName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-2">
@@ -316,16 +359,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('switch')}
+                  onClick={() => setActiveTab('signin')}
                   className="px-4 py-2 text-slate-600 hover:text-slate-900"
                 >
                   Back
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white font-semibold rounded-lg shadow-sm"
+                  disabled={registerLoading}
+                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-60 text-white font-semibold rounded-lg shadow-sm"
                 >
-                  Register & Sign In
+                  {registerLoading ? 'Creating Account…' : 'Register & Sign In'}
                 </button>
               </div>
             </form>

@@ -1,0 +1,66 @@
+rules_version = '2';
+
+// v1 rules. The existing app is a public club portal: guests can look up their
+// own membership pass, self check-in via QR at the door, browse the calendar,
+// and register a new youth member — none of that required login before, and
+// none of it should start requiring login now. The two real upgrades in this
+// pass are: (1) leaders need an actual password instead of picking a name
+// from a list, and (2) a public registration can't grant itself Approved
+// status. Finer-grained protection of medical/contact data is planned
+// separately (see the Firebase migration plan) and isn't a v1 blocker.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSuperAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /clubs/{clubId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /divisions/{divisionId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /units/{unitId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /members/{memberId} {
+      allow read: if true;
+      // Public self-registration, but a client can't set itself Approved.
+      allow create: if request.resource.data.registrationStatus == 'Pending Review';
+      allow update, delete: if request.auth != null;
+    }
+
+    // Public read/write: self check-in via QR pass is an unauthenticated
+    // guest feature in this app (QrScannerModal is reachable from the public
+    // Guest Portal and Member Hub, not just the staff nav).
+    match /attendance/{attendanceId} {
+      allow read, write: if true;
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      // Leaders can create/edit their own profile; a Super Admin can manage anyone's.
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && (request.auth.uid == uid || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+  }
+}

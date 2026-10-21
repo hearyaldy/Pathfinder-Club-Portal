@@ -25,9 +25,10 @@ export type RegistrationStatus =
 
 export type AttendanceStatus = 'Present' | 'Late' | 'Excused' | 'Absent';
 
-export type UserRole = 
-  | 'Mission Youth Director' 
-  | 'District Coordinator' 
+export type UserRole =
+  | 'Super Admin'
+  | 'Mission Youth Director'
+  | 'District Coordinator'
   | 'Church Pastor' 
   | 'Club Director' 
   | 'Club Secretary' 
@@ -124,10 +125,22 @@ export interface GeoLocationState {
   isWithinActiveChurchGeofence?: boolean;
 }
 
+export interface Division {
+  id: string;
+  orgId: string;
+  clubId: string; // Club this division belongs to
+  name: string; // e.g. "Teen Division", "Junior Division"
+  ageRange?: string;
+  leaderName?: string;
+  leaderPhone?: string;
+  description?: string;
+}
+
 export interface ClubUnit {
   id: string;
   orgId: string;
   clubId?: string; // Linked specific club in church (e.g. Pathfinder vs Adventurer)
+  divisionId?: string; // Optional grouping within the club (not every club uses divisions)
   name: string;
   branch: ClubBranch;
   counselorName: string;
@@ -142,6 +155,8 @@ export interface Member {
   orgId: string;
   clubId?: string; // Specific club in church
   clubName?: string;
+  divisionId?: string; // Division within that club, if the unit belongs to one
+  divisionName?: string;
   registrationNumber: string;
   branch: ClubBranch;
   className: AdventurerClass | PathfinderClass | string;
@@ -196,4 +211,21 @@ export interface AttendanceRecord {
   checkInTime?: string;
   checkInMethod: 'Manual' | 'QR Code' | 'Fast Roster';
   notes?: string;
+}
+
+export interface MemberEvaluation {
+  id: string; // `${eventId}_${memberId}`
+  orgId: string;
+  eventId: string;
+  memberId: string;
+  unitId?: string; // denormalized at scoring time, so the leaderboard holds up even if the member later changes units
+  attendanceScore: number; // 0-10, auto-derived from the member's attendance record for this event
+  marchingDrillScore: number; // 0-20
+  uniformScore: number; // 0-20
+  disciplineScore: number; // 0-20
+  investitureBonusScore?: number; // 0-10, only set for Investiture events
+  totalScore: number;
+  maxScore: number; // 70 normally, 80 for Investiture events
+  notes?: string;
+  evaluatedAt: string;
 }

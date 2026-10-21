@@ -1,12 +1,13 @@
-import { 
-  Member, 
-  ClubEvent, 
-  ClubUnit, 
-  AttendanceRecord, 
-  ChurchOrganization, 
+import {
+  Member,
+  ClubEvent,
+  ClubUnit,
+  AttendanceRecord,
+  ChurchOrganization,
   AuthUser,
   DistrictItem,
-  ClubEntity
+  ClubEntity,
+  Division
 } from '../types/club';
 
 export const INITIAL_DISTRICTS: DistrictItem[] = [
@@ -270,10 +271,15 @@ export const INITIAL_STAFF_USERS: AuthUser[] = [
   },
 ];
 
+export const INITIAL_DIVISIONS: Division[] = [
+  { id: 'div-grace-pf-teen', orgId: 'org-grace', clubId: 'club-grace-pf', name: 'Teen Division', ageRange: 'Ages 12–15', leaderName: 'Elder Samuel Vance' },
+  { id: 'div-grace-pf-junior', orgId: 'org-grace', clubId: 'club-grace-pf', name: 'Junior Division', ageRange: 'Ages 10–12', leaderName: 'Brother David Osei' },
+];
+
 export const INITIAL_UNITS: ClubUnit[] = [
-  { id: 'unit-1', orgId: 'org-grace', clubId: 'club-grace-pf', name: 'Golden Eagles', branch: 'Pathfinders', counselorName: 'Elder Samuel Vance', genderDivision: 'Boys', ageRange: 'Ages 11–13', motto: 'Soaring for Christ' },
-  { id: 'unit-2', orgId: 'org-grace', clubId: 'club-grace-pf', name: 'Timber Wolves', branch: 'Pathfinders', counselorName: 'Sister Maria Gonzales', genderDivision: 'Girls', ageRange: 'Ages 12–14', motto: 'Courageous in Truth' },
-  { id: 'unit-3', orgId: 'org-grace', clubId: 'club-grace-pf', name: 'Trailblazers', branch: 'Pathfinders', counselorName: 'Brother David Osei', genderDivision: 'Co-ed', ageRange: 'Ages 10–12', motto: 'Blazing the Trail to Heaven' },
+  { id: 'unit-1', orgId: 'org-grace', clubId: 'club-grace-pf', divisionId: 'div-grace-pf-teen', name: 'Golden Eagles', branch: 'Pathfinders', counselorName: 'Elder Samuel Vance', genderDivision: 'Boys', ageRange: 'Ages 11–13', motto: 'Soaring for Christ' },
+  { id: 'unit-2', orgId: 'org-grace', clubId: 'club-grace-pf', divisionId: 'div-grace-pf-teen', name: 'Timber Wolves', branch: 'Pathfinders', counselorName: 'Sister Maria Gonzales', genderDivision: 'Girls', ageRange: 'Ages 12–14', motto: 'Courageous in Truth' },
+  { id: 'unit-3', orgId: 'org-grace', clubId: 'club-grace-pf', divisionId: 'div-grace-pf-junior', name: 'Trailblazers', branch: 'Pathfinders', counselorName: 'Brother David Osei', genderDivision: 'Co-ed', ageRange: 'Ages 10–12', motto: 'Blazing the Trail to Heaven' },
   { id: 'unit-4', orgId: 'org-grace', clubId: 'club-grace-adv', name: 'Busy Bees', branch: 'Adventurers', counselorName: 'Sister Grace Kim', genderDivision: 'Co-ed', ageRange: 'Ages 6–7', motto: 'Always Willing to Help' },
   { id: 'unit-5', orgId: 'org-grace', clubId: 'club-grace-adv', name: 'Sunbeam Stars', branch: 'Adventurers', counselorName: 'Sister Elena Rostova', genderDivision: 'Co-ed', ageRange: 'Ages 7–8', motto: 'Shining for Jesus' },
   { id: 'unit-6', orgId: 'org-grace', clubId: 'club-grace-adv', name: 'Faith Builders', branch: 'Adventurers', counselorName: 'Brother James Miller', genderDivision: 'Co-ed', ageRange: 'Ages 8–9', motto: 'Building on the Rock' },
