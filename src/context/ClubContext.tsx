@@ -14,6 +14,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import {
   Member,
+  MemberDetails,
+  MEMBER_DETAIL_FIELDS,
   ClubEvent,
   ClubUnit,
   ClubEntity,
@@ -87,6 +89,7 @@ interface ClubContextType {
   deleteUnit: (unitId: string) => void;
   registerMember: (data: Partial<Member> & { firstName: string; lastName: string; branch: Member['branch'] }) => Member;
   updateMemberStatus: (memberId: string, status: RegistrationStatus, notes?: string) => void;
+  updateMemberDetails: (memberId: string, details: MemberDetails) => Promise<void>;
   assignUnit: (memberId: string, unitId: string) => void;
   toggleDuesPaid: (memberId: string) => void;
   deleteMember: (memberId: string) => void;
@@ -508,6 +511,20 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newMember;
   };
 
+  const updateMemberDetails = async (memberId: string, details: MemberDetails): Promise<void> => {
+    const member = members.find(m => m.id === memberId);
+    const managesMultipleChurches = currentUser && ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role);
+    if (!member || !currentUser || currentUser.role === 'Parent / Member' || (!managesMultipleChurches && currentUser.orgId !== member.orgId)) {
+      throw new Error('You do not have permission to edit this member.');
+    }
+    if (!details.firstName.trim() || !details.lastName.trim()) {
+      throw new Error('First and last names are required.');
+    }
+    const updates = Object.fromEntries(MEMBER_DETAIL_FIELDS
+      .map(key => [key, details[key] === undefined ? deleteField() : details[key].trim()]));
+    await updateDoc(doc(db, 'members', memberId), updates);
+  };
+
   const updateMemberStatus = (memberId: string, status: RegistrationStatus, notes?: string) => {
     updateDoc(doc(db, 'members', memberId), {
       registrationStatus: status,
@@ -876,6 +893,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteUnit,
         registerMember,
         updateMemberStatus,
+        updateMemberDetails,
         assignUnit,
         toggleDuesPaid,
         deleteMember,

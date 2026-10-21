@@ -186,6 +186,15 @@ export interface Member {
   photoReleaseConsent: boolean;
 }
 
+export const MEMBER_DETAIL_FIELDS = [
+  'firstName', 'lastName', 'dateOfBirth', 'gender', 'className',
+  'parentName', 'parentPhone', 'parentEmail', 'homeAddress',
+  'emergencyContact', 'emergencyPhone', 'emergencyRelation',
+  'medicalConditions', 'allergies', 'dietaryRestrictions', 'swimmingAbility', 'uniformSize',
+] as const;
+
+export type MemberDetails = Pick<Member, typeof MEMBER_DETAIL_FIELDS[number]>;
+
 export interface ClubEvent {
   id: string;
   orgId: string;
