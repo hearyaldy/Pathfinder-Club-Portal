@@ -150,6 +150,8 @@ export interface ClubUnit {
   motto?: string;
 }
 
+export type UnitDetails = Pick<ClubUnit, 'name' | 'counselorName' | 'counselorPhone' | 'genderDivision' | 'ageRange' | 'motto' | 'divisionId'>;
+
 export interface Member {
   id: string;
   orgId: string;

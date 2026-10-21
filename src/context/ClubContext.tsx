@@ -18,6 +18,7 @@ import {
   MEMBER_DETAIL_FIELDS,
   ClubEvent,
   ClubUnit,
+  UnitDetails,
   ClubEntity,
   Division,
   AttendanceRecord,
@@ -85,11 +86,11 @@ interface ClubContextType {
   units: ClubUnit[]; // units in current church + current club
   allUnits: ClubUnit[];
   addUnit: (unitData: Omit<ClubUnit, 'id'>) => ClubUnit;
-  updateUnit: (unitId: string, updates: Partial<ClubUnit>) => void;
+  updateUnit: (unitId: string, updates: UnitDetails) => Promise<void>;
   deleteUnit: (unitId: string) => void;
   registerMember: (data: Partial<Member> & { firstName: string; lastName: string; branch: Member['branch'] }) => Member;
   updateMemberStatus: (memberId: string, status: RegistrationStatus, notes?: string) => void;
-  updateMemberDetails: (memberId: string, details: MemberDetails) => Promise<void>;
+  updateMemberDetails: (memberId: string, details: MemberDetails, unitId?: string) => Promise<void>;
   assignUnit: (memberId: string, unitId: string) => void;
   toggleDuesPaid: (memberId: string) => void;
   deleteMember: (memberId: string) => void;
@@ -511,7 +512,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newMember;
   };
 
-  const updateMemberDetails = async (memberId: string, details: MemberDetails): Promise<void> => {
+  const updateMemberDetails = async (memberId: string, details: MemberDetails, unitId?: string): Promise<void> => {
     const member = members.find(m => m.id === memberId);
     const managesMultipleChurches = currentUser && ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role);
     if (!member || !currentUser || currentUser.role === 'Parent / Member' || (!managesMultipleChurches && currentUser.orgId !== member.orgId)) {
@@ -522,6 +523,21 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const updates = Object.fromEntries(MEMBER_DETAIL_FIELDS
       .map(key => [key, details[key] === undefined ? deleteField() : details[key].trim()]));
+    if (unitId !== undefined) {
+      const unit = allUnits.find(u => u.id === unitId && u.orgId === member.orgId && (u.branch === member.branch || member.branch === 'Staff'));
+      if (unitId && !unit) {
+        throw Object.assign(new Error('Choose an available unit in this church and branch.'), { code: 'invalid-unit' });
+      }
+      const club = allClubs.find(c => c.id === unit?.clubId && c.orgId === member.orgId);
+      const division = allDivisions.find(d => d.id === unit?.divisionId && d.clubId === unit?.clubId);
+      Object.assign(updates, {
+        unitId: unit?.id ?? deleteField(),
+        unitName: unit?.name ?? deleteField(),
+        divisionId: division?.id ?? deleteField(),
+        divisionName: division?.name ?? deleteField(),
+        ...(unit ? { clubId: unit.clubId ?? deleteField(), clubName: club?.name ?? deleteField() } : {}),
+      });
+    }
     await updateDoc(doc(db, 'members', memberId), updates);
   };
 
@@ -553,16 +569,35 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newUnit;
   };
 
-  const updateUnit = (unitId: string, updates: Partial<ClubUnit>) => {
-    updateDoc(doc(db, 'units', unitId), updates);
-    // Also update any members that have this unitName
-    if (updates.name) {
-      const batch = writeBatch(db);
-      allMembers.filter(m => m.unitId === unitId).forEach(m => {
-        batch.update(doc(db, 'members', m.id), { unitName: updates.name });
-      });
-      batch.commit();
+  const updateUnit = async (unitId: string, details: UnitDetails): Promise<void> => {
+    const unit = allUnits.find(u => u.id === unitId && u.orgId === currentOrgId);
+    const managesMultipleChurches = currentUser && ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role);
+    if (!unit || !currentUser || currentUser.role === 'Parent / Member' || (!managesMultipleChurches && currentUser.orgId !== unit.orgId)) {
+      throw new Error('You do not have permission to edit this unit.');
     }
+    if (!details.name.trim()) throw new Error('Unit name is required.');
+    const division = allDivisions.find(d => d.id === details.divisionId && d.orgId === unit.orgId && d.clubId === unit.clubId);
+    if (details.divisionId && !division) {
+      throw Object.assign(new Error('Choose a division in this club.'), { code: 'invalid-division' });
+    }
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'units', unitId), {
+      name: details.name.trim(),
+      counselorName: details.counselorName.trim(),
+      counselorPhone: details.counselorPhone?.trim() ?? '',
+      genderDivision: details.genderDivision ?? deleteField(),
+      ageRange: details.ageRange?.trim() ?? '',
+      motto: details.motto?.trim() ?? '',
+      divisionId: division?.id ?? deleteField(),
+    });
+    allMembers.filter(m => m.unitId === unitId && m.orgId === unit.orgId).forEach(m => {
+      batch.update(doc(db, 'members', m.id), {
+        unitName: details.name.trim(),
+        divisionId: division?.id ?? deleteField(),
+        divisionName: division?.name ?? deleteField(),
+      });
+    });
+    await batch.commit();
   };
 
   const deleteUnit = (unitId: string) => {

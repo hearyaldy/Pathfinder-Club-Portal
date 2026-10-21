@@ -10,7 +10,9 @@ interface EditMemberModalProps {
 }
 
 export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, onClose, onSaved }) => {
-  const { updateMemberDetails } = useClub();
+  const { updateMemberDetails, allUnits, allClubs } = useClub();
+  const [unitId, setUnitId] = useState(member.unitId ?? '');
+  const availableUnits = allUnits.filter(unit => unit.orgId === member.orgId && (unit.branch === member.branch || member.branch === 'Staff'));
   const dialog = useRef<HTMLDialogElement>(null);
   const [details, setDetails] = useState<MemberDetails>(() => ({
     ...Object.fromEntries(MEMBER_DETAIL_FIELDS.map(key => [key, member[key] ?? ''])),
@@ -44,11 +46,11 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, onClos
     setSaving(true);
     setError('');
     try {
-      await updateMemberDetails(member.id, details);
+      await updateMemberDetails(member.id, details, unitId !== (member.unitId ?? '') ? unitId : undefined);
       onSaved();
     } catch (err) {
       const code = (err as { code?: string })?.code;
-      setError(code === 'permission-denied'
+      setError(code === 'invalid-unit' ? 'That unit is no longer available. Choose another unit and try again.' : code === 'permission-denied'
         ? 'Access was denied. Check that you are signed in with permission to edit this member.'
         : 'Changes could not be saved. Check your connection and try again.');
     } finally {
@@ -84,6 +86,18 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, onClos
                 </select>
               </label>
               {field('className', 'Class')}
+              <div>
+                <label htmlFor="edit-member-unit" className="block text-xs font-semibold text-slate-700">Unit</label>
+                <select id="edit-member-unit" className={inputClass} value={unitId} onChange={e => setUnitId(e.target.value)}>
+                  <option value="">Unassigned</option>
+                  {unitId && !availableUnits.some(unit => unit.id === unitId) && (
+                    <option value={unitId}>{member.unitName || 'Previous unit'} (unavailable)</option>
+                  )}
+                  {availableUnits.map(unit => (
+                    <option key={unit.id} value={unit.id}>{unit.name}{unit.clubId ? ` · ${allClubs.find(club => club.id === unit.clubId)?.name || unit.branch}` : ''}</option>
+                  ))}
+                </select>
+              </div>
               <label className="block text-xs font-semibold text-slate-700">Uniform size
                 <select className={inputClass} value={details.uniformSize} onChange={e => setDetails(p => ({ ...p, uniformSize: e.target.value as Member['uniformSize'] }))}>
                   {['Youth S', 'Youth M', 'Youth L', 'Adult S', 'Adult M', 'Adult L', 'Adult XL'].map(value => <option key={value}>{value}</option>)}

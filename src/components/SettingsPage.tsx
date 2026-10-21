@@ -19,9 +19,11 @@ import {
   Award,
   ShieldAlert,
   Sparkles,
-  UserCheck
+  UserCheck,
+  Pencil
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
+import { EditUnitModal } from './EditUnitModal';
 import { ChurchOrganization, UserRole, ClubUnit, ClubBranch, ClubEntity, ClubType } from '../types/club';
 
 export const SettingsPage: React.FC = () => {
@@ -47,7 +49,6 @@ export const SettingsPage: React.FC = () => {
     units,
     allUnits,
     addUnit,
-    updateUnit,
     deleteUnit,
     members,
     assignUnit,
@@ -84,6 +85,12 @@ export const SettingsPage: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showAddChurchModal, setShowAddChurchModal] = useState(false);
   const [showAddUnitModal, setShowAddUnitModal] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<ClubUnit | null>(null);
+  const [unitSaveMessage, setUnitSaveMessage] = useState('');
+  const canEditUnit = !!currentUser && currentUser.role !== 'Parent / Member' && (
+    currentUser.orgId === currentOrgId || ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role)
+  );
+  React.useEffect(() => { setEditingUnit(null); setUnitSaveMessage(''); }, [currentOrgId, currentClubId, currentUser?.id]);
 
   // New Unit Form State
   const [newUnitName, setNewUnitName] = useState('');
@@ -545,6 +552,7 @@ export const SettingsPage: React.FC = () => {
       {/* TAB 2: Register Club Units */}
       {activeTab === 'units' && (
         <div className="space-y-6">
+          {unitSaveMessage && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{unitSaveMessage}</p>}
           <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
               <div>
@@ -719,6 +727,14 @@ export const SettingsPage: React.FC = () => {
                             </h3>
                           </div>
 
+                          <div className="flex items-center gap-1">
+                          {canEditUnit && (
+                            <button onClick={() => { setUnitSaveMessage(''); setEditingUnit(unit); }}
+                              aria-label={`Edit unit ${unit.name}`}
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100">
+                              <Pencil className="h-3.5 w-3.5" /> Edit
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               if (window.confirm(`Delete unit "${unit.name}"? Members will become unassigned.`)) {
@@ -730,6 +746,7 @@ export const SettingsPage: React.FC = () => {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          </div>
                         </div>
 
                         {unit.motto && (
@@ -2027,6 +2044,11 @@ export const SettingsPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {editingUnit && canEditUnit && (
+        <EditUnitModal key={editingUnit.id} unit={editingUnit}
+          onClose={() => setEditingUnit(null)}
+          onSaved={() => { setEditingUnit(null); setUnitSaveMessage('Unit details saved.'); }} />
       )}
     </div>
   );
