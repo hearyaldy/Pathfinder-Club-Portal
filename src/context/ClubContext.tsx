@@ -17,6 +17,7 @@ import {
   MemberDetails,
   MEMBER_DETAIL_FIELDS,
   ClubEvent,
+  EventDetails,
   ClubUnit,
   UnitDetails,
   ClubEntity,
@@ -109,7 +110,9 @@ interface ClubContextType {
     notes?: string
   ) => void;
   markBatchAttendance: (eventId: string, memberIds: string[], status: AttendanceStatus) => void;
-  addEvent: (eventData: Omit<ClubEvent, 'id' | 'isActive' | 'orgId'>) => ClubEvent;
+  addEvent: (eventData: EventDetails, activate?: boolean) => Promise<ClubEvent>;
+  updateEvent: (eventId: string, details: EventDetails) => Promise<void>;
+  deleteEvent: (eventId: string) => Promise<void>;
   setActiveEventId: (eventId: string) => void;
 
   // Unit Scoring / Member Evaluations
@@ -384,16 +387,16 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Scoped members, events, units for current church (units further scoped to the active club, if any)
   const members = allMembers.filter(m => m.orgId === currentOrgId);
-  const events = allEvents.filter(e => e.orgId === currentOrgId);
+  const events = allEvents.filter(e => e.orgId === currentOrgId && !e.deletedAt);
   const units = allUnits.filter(u => u.orgId === currentOrgId && (!currentClubId || u.clubId === currentClubId));
 
   const [activeEventId, setActiveEventId] = useState<string>('');
 
   // Whenever current church (or the event list) changes, ensure active event points to an event in that church
   useEffect(() => {
-    const churchEvents = allEvents.filter(e => e.orgId === currentOrgId);
-    if (churchEvents.length > 0 && !churchEvents.some(e => e.id === activeEventId)) {
-      setActiveEventId(churchEvents[0].id);
+    const churchEvents = allEvents.filter(e => e.orgId === currentOrgId && !e.deletedAt);
+    if (!churchEvents.some(e => e.id === activeEventId)) {
+      setActiveEventId(churchEvents.find(e => e.isActive)?.id ?? churchEvents[0]?.id ?? '');
     }
   }, [currentOrgId, allEvents]);
 
@@ -706,17 +709,48 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     batch.commit();
   };
 
-  const addEvent = (eventData: Omit<ClubEvent, 'id' | 'isActive' | 'orgId'>): ClubEvent => {
+  const assertCanManageEvents = () => {
+    const managesMultipleChurches = currentUser && ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role);
+    if (!currentUser || currentUser.role === 'Parent / Member' || (!managesMultipleChurches && currentUser.orgId !== currentOrgId)) {
+      throw Object.assign(new Error('You do not have permission to manage these events.'), { code: 'permission-denied' });
+    }
+  };
+
+  const eventDetailsForSave = (details: EventDetails): EventDetails => {
+    assertCanManageEvents();
+    if (!details.title.trim() || !details.time.trim() || !details.location.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(details.date) ||
+        !['Both', 'Pathfinders', 'Adventurers'].includes(details.branch) ||
+        !['Regular Meeting', 'Campout', 'Investiture', 'Outreach', 'Executive'].includes(details.type)) {
+      throw Object.assign(new Error('Complete the event details.'), { code: 'invalid-event' });
+    }
+    return { title: details.title.trim(), branch: details.branch, date: details.date, time: details.time.trim(), location: details.location.trim(), type: details.type };
+  };
+
+  const addEvent = async (eventData: EventDetails, activate = true): Promise<ClubEvent> => {
+    const details = eventDetailsForSave(eventData);
     const ref = doc(eventsCol);
-    const newEvent: ClubEvent = { ...eventData, orgId: currentOrgId, id: ref.id, isActive: true };
+    const newEvent: ClubEvent = { ...details, orgId: currentOrgId, id: ref.id, isActive: activate };
     const batch = writeBatch(db);
     batch.set(ref, newEvent);
-    allEvents.filter(e => e.orgId === currentOrgId).forEach(e => {
-      batch.update(doc(db, 'events', e.id), { isActive: false });
-    });
-    batch.commit();
-    setActiveEventId(newEvent.id);
+    if (activate) {
+      events.forEach(e => { batch.update(doc(db, 'events', e.id), { isActive: false }); });
+    }
+    await batch.commit();
+    if (activate) setActiveEventId(newEvent.id);
     return newEvent;
+  };
+
+  const updateEvent = async (eventId: string, details: EventDetails): Promise<void> => {
+    const updates = eventDetailsForSave(details);
+    if (!events.some(event => event.id === eventId)) throw new Error('Event is no longer available.');
+    await updateDoc(doc(db, 'events', eventId), updates);
+  };
+
+  const deleteEvent = async (eventId: string): Promise<void> => {
+    const event = events.find(event => event.id === eventId);
+    if (!event) throw new Error('Event is no longer available.');
+    assertCanManageEvents();
+    await updateDoc(doc(db, 'events', eventId), { deletedAt: new Date().toISOString(), isActive: false });
   };
 
   const exportDatabaseJson = () => {
@@ -964,6 +998,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         recordAttendance,
         markBatchAttendance,
         addEvent,
+        updateEvent,
+        deleteEvent,
         setActiveEventId,
         evaluations: allEvaluations,
         recordEvaluation,

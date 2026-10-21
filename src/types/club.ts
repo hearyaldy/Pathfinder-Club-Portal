@@ -209,11 +209,14 @@ export interface ClubEvent {
   location: string;
   type: 'Regular Meeting' | 'Campout' | 'Investiture' | 'Outreach' | 'Executive';
   isActive: boolean;
+  deletedAt?: string; // Removed from the calendar; attendance and scores remain available in backups.
   latitude?: number;
   longitude?: number;
   geofenceRadiusMeters?: number; // event checkin boundary, e.g. 500m
   enforceGeofence?: boolean;
 }
+
+export type EventDetails = Pick<ClubEvent, 'title' | 'branch' | 'date' | 'time' | 'location' | 'type'>;
 
 export interface AttendanceRecord {
   id: string;
