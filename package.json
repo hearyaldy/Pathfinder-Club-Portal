@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test:scoring": "node --import tsx --test src/utils/scoreUtils.test.ts",
     "seed:firebase": "tsx scripts/seedFirestore.ts",
     "set-role": "tsx scripts/setUserRole.ts"
   },

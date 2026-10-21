@@ -24,6 +24,8 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npm run lint
+      - name: Scoring tests
+        run: npm run test:scoring
       - name: Validate Firebase configuration
         env: &firebase-env
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

@@ -55,6 +55,52 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // BEGIN scoring rules
+    function canManageScores(orgId) {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return request.auth != null && profile.role in [
+        'Super Admin', 'Mission Youth Director', 'District Coordinator',
+        'Church Pastor', 'Club Director', 'Club Secretary', 'Unit Counselor'
+      ] && (profile.orgId == orgId || profile.role in ['Super Admin', 'Mission Youth Director', 'District Coordinator']);
+    }
+
+    function validScore(value, maximum) {
+      return value is int && value >= 0 && value <= maximum;
+    }
+
+    function scoreAttendance(eventId, memberId) {
+      let attendancePath = /databases/$(database)/documents/attendance/$(eventId + '_' + memberId);
+      return exists(attendancePath) && get(attendancePath).data.status in ['Present', 'Late'] ? 10 : 0;
+    }
+
+    function validEvaluation(data, evaluationId) {
+      let event = get(/databases/$(database)/documents/events/$(data.eventId)).data;
+      let member = get(/databases/$(database)/documents/members/$(data.memberId)).data;
+      let investiture = event.type == 'Investiture';
+      let bonus = data.get('investitureBonusScore', 0);
+      return data.keys().hasAll(['id', 'orgId', 'eventId', 'memberId', 'attendanceScore', 'marchingDrillScore', 'uniformScore', 'disciplineScore', 'totalScore', 'maxScore', 'evaluatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'eventId', 'memberId', 'unitId', 'attendanceScore', 'marchingDrillScore', 'uniformScore', 'disciplineScore', 'investitureBonusScore', 'totalScore', 'maxScore', 'notes', 'evaluatedAt'])
+        && data.id == evaluationId && evaluationId == data.eventId + '_' + data.memberId
+        && data.orgId == event.orgId && data.orgId == member.orgId
+        && !event.keys().hasAny(['deletedAt'])
+        && member.registrationStatus == 'Approved'
+        && (event.branch == 'Both' || member.branch == event.branch || member.branch == 'Staff')
+        && data.get('unitId', '') == member.get('unitId', '')
+        && validScore(data.marchingDrillScore, 20) && validScore(data.uniformScore, 20) && validScore(data.disciplineScore, 20)
+        && validScore(bonus, 10) && (investiture || !data.keys().hasAny(['investitureBonusScore']))
+        && data.attendanceScore == scoreAttendance(data.eventId, data.memberId)
+        && data.maxScore == (investiture ? 80 : 70)
+        && data.totalScore == data.attendanceScore + data.marchingDrillScore + data.uniformScore + data.disciplineScore + bonus
+        && data.get('notes', '') is string && data.evaluatedAt is string;
+    }
+
+    match /evaluations/{evaluationId} {
+      allow read: if canManageScores(resource.data.orgId);
+      allow create: if canManageScores(request.resource.data.orgId) && validEvaluation(request.resource.data, evaluationId);
+      allow update: if resource.data.orgId == request.resource.data.orgId && canManageScores(request.resource.data.orgId) && validEvaluation(request.resource.data, evaluationId);
+    }
+    // END scoring rules
+
     match /users/{uid} {
       allow read: if request.auth != null;
       // Leaders can create/edit their own profile; a Super Admin can manage anyone's.

@@ -49,7 +49,15 @@ in `VITE_FIREBASE_AUTH_DOMAIN`.
 
 ## Local verification
 
+Member scoring is available in **Live Attendance → Score** for authorized leaders.
+Regular events use a 70-point total; Investiture events use 80 points.
+Attendance points follow current check-ins. Unit rankings average evaluation
+percentages across the church, using each member's unit when scores were saved.
+Scoring requires the `/evaluations` rules in `firestore.rules`; score queries
+are scoped to the selected church. GitHub Pages does not deploy those rules.
+
 ```sh
+npm run test:scoring
 npm run build
 npm run lint
 npm run preview

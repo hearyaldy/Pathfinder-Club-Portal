@@ -7,6 +7,8 @@ import {
   deleteDoc,
   deleteField,
   onSnapshot,
+  query,
+  where,
   writeBatch,
   CollectionReference,
 } from 'firebase/firestore';
@@ -38,7 +40,7 @@ import {
   calculateDistanceMeters,
   filterChurchesByGeofence
 } from '../utils/geoUtils';
-import { getMaxScoreForEvent, SCORE_CATEGORY_MAX } from '../utils/scoreUtils';
+import { calculateScore, EvaluationScores } from '../utils/scoreUtils';
 
 interface ClubContextType {
   // Geofencing & Location Scope
@@ -117,12 +119,15 @@ interface ClubContextType {
 
   // Unit Scoring / Member Evaluations
   evaluations: MemberEvaluation[];
+  evaluationsLoading: boolean;
+  evaluationsError: string;
+  canManageScoring: boolean;
   recordEvaluation: (
     eventId: string,
     memberId: string,
-    scores: { marchingDrillScore: number; uniformScore: number; disciplineScore: number; investitureBonusScore?: number },
+    scores: EvaluationScores,
     notes?: string
-  ) => void;
+  ) => Promise<void>;
   getMemberEvaluationForEvent: (eventId: string, memberId: string) => MemberEvaluation | undefined;
   getUnitLeaderboard: () => Array<{
     unitId: string;
@@ -191,6 +196,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [allEvents, setAllEvents] = useState<ClubEvent[]>([]);
   const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
   const [allEvaluations, setAllEvaluations] = useState<MemberEvaluation[]>([]);
+  const [evaluationsLoading, setEvaluationsLoading] = useState(false);
+  const [evaluationsError, setEvaluationsError] = useState('');
   const [allUnits, setAllUnits] = useState<ClubUnit[]>([]);
   const [allClubs, setAllClubs] = useState<ClubEntity[]>([]);
   const [allDivisions, setAllDivisions] = useState<Division[]>([]);
@@ -213,7 +220,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubMembers = subscribeCollection<Member>(membersCol, setAllMembers);
     const unsubEvents = subscribeCollection<ClubEvent>(eventsCol, setAllEvents);
     const unsubAttendance = subscribeCollection<AttendanceRecord>(attendanceCol, setAllAttendance);
-    const unsubEvaluations = subscribeCollection<MemberEvaluation>(evaluationsCol, setAllEvaluations);
     const unsubUsers = subscribeCollection<AuthUser>(usersCol, setStaffUsers);
 
     return () => {
@@ -224,10 +230,28 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubMembers();
       unsubEvents();
       unsubAttendance();
-      unsubEvaluations();
       unsubUsers();
     };
   }, []);
+
+  const canManageScoring = !!currentUser && currentUser.role !== 'Parent / Member' && (
+    currentUser.orgId === currentOrgId || ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role)
+  );
+  useEffect(() => {
+    setAllEvaluations([]);
+    setEvaluationsError('');
+    setEvaluationsLoading(canManageScoring);
+    if (!canManageScoring) return;
+    return onSnapshot(query(evaluationsCol, where('orgId', '==', currentOrgId)), snapshot => {
+      setAllEvaluations(snapshot.docs.map(document => ({ ...document.data(), id: document.id } as MemberEvaluation)));
+      setEvaluationsLoading(false);
+    }, error => {
+      console.error('Failed to load scores:', error);
+      setAllEvaluations([]);
+      setEvaluationsLoading(false);
+      setEvaluationsError('Scores could not be loaded. Check your connection and scoring permissions, then reload the page.');
+    });
+  }, [canManageScoring, currentOrgId, currentUser?.id, currentUser?.role]);
 
   // Live auth session: follow Firebase Auth, then the signed-in leader's profile doc.
   useEffect(() => {
@@ -803,24 +827,20 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return allAttendance.find(a => a.eventId === eventId && a.memberId === memberId);
   };
 
-  const recordEvaluation = (
+  const recordEvaluation = async (
     eventId: string,
     memberId: string,
-    scores: { marchingDrillScore: number; uniformScore: number; disciplineScore: number; investitureBonusScore?: number },
+    scores: EvaluationScores,
     notes?: string
-  ) => {
-    const event = allEvents.find(e => e.id === eventId);
-    const member = allMembers.find(m => m.id === memberId);
+  ): Promise<void> => {
+    if (!canManageScoring) throw Object.assign(new Error('You do not have permission to score members.'), { code: 'permission-denied' });
+    const event = events.find(e => e.id === eventId);
+    const member = members.find(m => m.id === memberId && m.registrationStatus === 'Approved');
+    if (!event || !member || (event.branch !== 'Both' && member.branch !== event.branch && member.branch !== 'Staff')) {
+      throw new Error('Choose an approved member eligible for this event.');
+    }
     const attendanceRecord = allAttendance.find(a => a.eventId === eventId && a.memberId === memberId);
-    const attendanceScore = (attendanceRecord?.status === 'Present' || attendanceRecord?.status === 'Late')
-      ? SCORE_CATEGORY_MAX.ATTENDANCE
-      : 0;
-    const maxScore = getMaxScoreForEvent(event?.type ?? 'Regular Meeting');
-    const investitureBonusScore = event?.type === 'Investiture' ? (scores.investitureBonusScore ?? 0) : undefined;
-    const totalScore = Math.min(
-      maxScore,
-      attendanceScore + scores.marchingDrillScore + scores.uniformScore + scores.disciplineScore + (investitureBonusScore ?? 0)
-    );
+    const calculated = calculateScore(event.type, attendanceRecord?.status, scores);
 
     const recordId = `${eventId}_${memberId}`;
     const record: MemberEvaluation = {
@@ -829,28 +849,37 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       eventId,
       memberId,
       unitId: member?.unitId,
-      attendanceScore,
+      ...calculated,
       marchingDrillScore: scores.marchingDrillScore,
       uniformScore: scores.uniformScore,
       disciplineScore: scores.disciplineScore,
-      investitureBonusScore,
-      totalScore,
-      maxScore,
-      notes,
+      notes: notes?.trim() ?? '',
       evaluatedAt: new Date().toISOString(),
     };
-    setDoc(doc(db, 'evaluations', recordId), record);
+    await setDoc(doc(db, 'evaluations', recordId), record);
+  };
+
+  // Attendance points and event maximums follow the current roster and event type.
+  // Saved manual scores and the unit captured at evaluation time remain unchanged.
+  const currentEvaluation = (evaluation: MemberEvaluation): MemberEvaluation => {
+    const event = allEvents.find(event => event.id === evaluation.eventId);
+    if (!event) return evaluation;
+    const attendance = allAttendance.find(record => record.eventId === evaluation.eventId && record.memberId === evaluation.memberId);
+    try { return { ...evaluation, ...calculateScore(event.type, attendance?.status, evaluation) }; }
+    catch { return evaluation; } // Legacy records can still be opened and corrected in the scoring form.
   };
 
   const getMemberEvaluationForEvent = (eventId: string, memberId: string): MemberEvaluation | undefined => {
-    return allEvaluations.find(e => e.eventId === eventId && e.memberId === memberId);
+    const evaluation = allEvaluations.find(e => e.orgId === currentOrgId && e.eventId === eventId && e.memberId === memberId);
+    return evaluation ? currentEvaluation(evaluation) : undefined;
   };
 
   const getUnitLeaderboard = () => {
     const orgUnits = allUnits.filter(u => u.orgId === currentOrgId);
     return orgUnits
       .map(unit => {
-        const unitEvaluations = allEvaluations.filter(e => e.unitId === unit.id && e.orgId === currentOrgId);
+        const unitEvaluations = allEvaluations.filter(e => e.unitId === unit.id && e.orgId === currentOrgId).map(currentEvaluation)
+          .filter(e => e.maxScore > 0 && Number.isFinite(e.totalScore) && e.totalScore >= 0 && e.totalScore <= e.maxScore);
         const averagePercentage = unitEvaluations.length > 0
           ? Math.round(
               (unitEvaluations.reduce((sum, e) => sum + e.totalScore / e.maxScore, 0) / unitEvaluations.length) * 100
@@ -1002,6 +1031,9 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteEvent,
         setActiveEventId,
         evaluations: allEvaluations,
+        evaluationsLoading,
+        evaluationsError,
+        canManageScoring,
         recordEvaluation,
         getMemberEvaluationForEvent,
         getUnitLeaderboard,

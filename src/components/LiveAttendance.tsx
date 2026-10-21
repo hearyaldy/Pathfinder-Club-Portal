@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 import { AttendanceStatus, ClubBranch, Member } from '../types/club';
+import { MemberScoreModal } from './MemberScoreModal';
+import { UnitLeaderboard } from './UnitLeaderboard';
 
 interface LiveAttendanceProps {
   onOpenQrScanner: () => void;
@@ -41,7 +43,12 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
     geoSettings,
     isWithinCurrentChurchGeofence,
     distanceToCurrentChurch,
-    currentOrg
+    currentOrg,
+    currentUser,
+    canManageScoring,
+    evaluationsLoading,
+    evaluationsError,
+    getMemberEvaluationForEvent,
   } = useClub();
 
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('All');
@@ -49,6 +56,10 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [quickNoteMemberId, setQuickNoteMemberId] = useState<string | null>(null);
   const [customNote, setCustomNote] = useState('');
+  const [scoringMemberId, setScoringMemberId] = useState<string | null>(null);
+  const [scoreMessage, setScoreMessage] = useState('');
+  React.useEffect(() => { setScoringMemberId(null); setScoreMessage(''); }, [activeEventId, currentOrg.id, currentUser?.id]);
+  const scoringMember = members.find(member => member.id === scoringMemberId);
 
   // Attendance stats for current active event
   const stats = useMemo(() => {
@@ -390,6 +401,7 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
       </div>
 
       {/* Roster Live Attendance Table */}
+      {scoreMessage && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{scoreMessage}</p>}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -400,13 +412,14 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
                 <th className="py-3 px-4">Unit / Counselor</th>
                 <th className="py-3 px-4">Current Status & Timestamp</th>
                 <th className="py-3 px-4 text-center">Real-Time Attendance Buttons</th>
+                {canManageScoring && <th className="py-3 px-4">Event score</th>}
                 <th className="py-3 px-4 text-right">Pass / Note</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {eligibleMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                  <td colSpan={canManageScoring ? 7 : 6} className="py-12 text-center text-slate-500">
                     <p className="font-semibold text-sm">No members found in this unit or search view.</p>
                     <p className="text-xs text-slate-400 mt-1">Make sure members are approved in the Church Review queue.</p>
                   </td>
@@ -415,6 +428,7 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
                 eligibleMembers.map((member) => {
                   const record = activeEvent ? getMemberAttendanceForEvent(activeEvent.id, member.id) : undefined;
                   const currentStatus: AttendanceStatus = record ? record.status : 'Absent';
+                  const evaluation = activeEvent && !evaluationsLoading && !evaluationsError ? getMemberEvaluationForEvent(activeEvent.id, member.id) : undefined;
 
                   return (
                     <tr key={member.id} className="hover:bg-slate-50/60 transition-colors">
@@ -551,6 +565,12 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
                       </td>
 
                       {/* Pass Modal / Note trigger */}
+                      {canManageScoring && <td className="py-3 px-4">
+                        <button type="button" disabled={!activeEvent || evaluationsLoading || !!evaluationsError} aria-label={`Score ${member.firstName} ${member.lastName}`}
+                          onClick={() => { setScoreMessage(''); setScoringMemberId(member.id); }} className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-50">
+                          {evaluation ? `${evaluation.totalScore}/${evaluation.maxScore} · Edit` : 'Score'}
+                        </button>
+                      </td>}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
@@ -586,6 +606,9 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
       </div>
 
       {/* Attendance Remark Note Modal */}
+      <UnitLeaderboard />
+      {scoringMember && activeEvent && canManageScoring && <MemberScoreModal key={`${activeEvent.id}_${scoringMember.id}`} event={activeEvent} member={scoringMember}
+        onClose={() => setScoringMemberId(null)} onSaved={() => { setScoringMemberId(null); setScoreMessage('Scores saved.'); }} />}
       {quickNoteMemberId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
           <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-5 max-w-md w-full">
