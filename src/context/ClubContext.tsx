@@ -20,6 +20,7 @@ import {
   ClubUnit,
   UnitDetails,
   ClubEntity,
+  ClubDetails,
   Division,
   AttendanceRecord,
   MemberEvaluation,
@@ -70,7 +71,7 @@ interface ClubContextType {
   currentClub?: ClubEntity;
   setCurrentClubId: (id: string) => void;
   addClub: (clubData: Omit<ClubEntity, 'id'>) => Promise<ClubEntity>;
-  updateClub: (clubId: string, updates: Partial<ClubEntity>) => void;
+  updateClub: (clubId: string, updates: ClubDetails) => Promise<void>;
   deleteClub: (clubId: string) => void;
 
   // Divisions (optional grouping of Units within a Club)
@@ -417,8 +418,32 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newClub;
   };
 
-  const updateClub = (clubId: string, updates: Partial<ClubEntity>) => {
-    updateDoc(doc(db, 'clubs', clubId), updates);
+  const updateClub = async (clubId: string, details: ClubDetails): Promise<void> => {
+    const club = allClubs.find(c => c.id === clubId && c.orgId === currentOrgId);
+    const managesMultipleChurches = currentUser && ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role);
+    if (!club || !currentUser || currentUser.role === 'Parent / Member' || (!managesMultipleChurches && currentUser.orgId !== club.orgId)) {
+      throw new Error('You do not have permission to edit this club.');
+    }
+    if (!details.name.trim() || !details.directorName.trim() || !Number.isFinite(details.annualDues) || details.annualDues < 0) {
+      throw Object.assign(new Error('Enter a club name, director, and valid annual dues.'), { code: 'invalid-club' });
+    }
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'clubs', clubId), {
+      name: details.name.trim(),
+      directorName: details.directorName.trim(),
+      directorEmail: details.directorEmail?.trim() ?? '',
+      directorPhone: details.directorPhone?.trim() ?? '',
+      charterNumber: details.charterNumber.trim(),
+      meetingSchedule: details.meetingSchedule.trim(),
+      annualDues: details.annualDues,
+      motto: details.motto?.trim() ?? '',
+    });
+    if (details.name.trim() !== club.name) {
+      allMembers.filter(member => member.clubId === clubId && member.orgId === club.orgId).forEach(member => {
+        batch.update(doc(db, 'members', member.id), { clubName: details.name.trim() });
+      });
+    }
+    await batch.commit();
   };
 
   const deleteClub = (clubId: string) => {

@@ -77,6 +77,8 @@ export interface ClubEntity {
   establishedYear?: number;
 }
 
+export type ClubDetails = Pick<ClubEntity, 'name' | 'directorName' | 'directorEmail' | 'directorPhone' | 'charterNumber' | 'meetingSchedule' | 'annualDues' | 'motto'>;
+
 export interface ChurchOrganization {
   id: string;
   churchName: string;
