@@ -28,6 +28,7 @@ import { useClub } from '../context/ClubContext';
 import { EditUnitModal } from './EditUnitModal';
 import { CurrencySelect } from './CurrencySelect';
 import { currencyCode, currencyStep, formatClubDues } from '../utils/currency';
+import { districtOptions, resolveDistrict } from '../utils/district';
 import type { CurrencyCode } from '../types/club';
 import { EditClubModal } from './EditClubModal';
 import { ChurchOrganization, UserRole, ClubUnit, ClubBranch, ClubEntity, ClubType } from '../types/club';
@@ -156,7 +157,7 @@ export const SettingsPage: React.FC = () => {
   const [newChurchName, setNewChurchName] = useState('');
   const [newChurchCurrency, setNewChurchCurrency] = useState<CurrencyCode>(currencyCode(currentOrg.currency));
   const [newClubName, setNewClubName] = useState('');
-  const [newDistrict, setNewDistrict] = useState('District 4 (Cascade Metro)');
+  const [newDistrict, setNewDistrict] = useState('');
   const [newDirector, setNewDirector] = useState('');
   const [newPastor, setNewPastor] = useState('');
 
@@ -181,7 +182,7 @@ export const SettingsPage: React.FC = () => {
     e.preventDefault();
     updateOrganization(currentOrgId, {
       churchName,
-      districtName,
+      ...resolveDistrict(districtName, missionName, organizations),
       missionName,
       charterNumber,
       meetingSchedule,
@@ -200,15 +201,14 @@ export const SettingsPage: React.FC = () => {
 
   const handleAddNewChurch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newChurchName.trim()) return;
+    if (!newChurchName.trim() || !newDistrict.trim()) return;
 
     const created = addOrganization({
       churchName: newChurchName.trim(),
       clubName: newClubName.trim() || `${newChurchName.trim()} Pathfinder & Adventurer Club`,
-      districtId: 'dist-4',
-      districtName: newDistrict,
-      missionName: 'Cascade Conference / Mission',
-      unionName: 'North Pacific Union Conference',
+      ...resolveDistrict(newDistrict, currentOrg.missionName, organizations),
+      missionName: currentOrg.missionName,
+      unionName: currentOrg.unionName,
       charterNumber: `PF-CC-${Math.floor(1000 + Math.random() * 9000)}`,
       meetingSchedule: '1st & 3rd Sabbath at 3:00 PM',
       location: 'Springfield Metro Area',
@@ -273,6 +273,7 @@ export const SettingsPage: React.FC = () => {
 
       setShowAddChurchModal(false);
       setNewChurchName('');
+      setNewDistrict('');
       setNewClubName('');
       setNewDirector('');
     } catch (error) {
@@ -1293,13 +1294,20 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">District Name & Number</label>
+              <label htmlFor="profile-district" className="block font-semibold text-slate-700 mb-1">District Name & Number *</label>
               <input
+                id="profile-district"
+                list="profile-district-options"
+                required
+                pattern={'.*\\S.*'}
                 type="text"
                 value={districtName}
                 onChange={(e) => setDistrictName(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
               />
+              <datalist id="profile-district-options">
+                {districtOptions(organizations, missionName).map(name => <option key={name} value={name} />)}
+              </datalist>
             </div>
 
             <div>
@@ -1629,7 +1637,7 @@ export const SettingsPage: React.FC = () => {
       {/* Add Church Modal */}
       {showAddChurchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md max-h-[90vh] w-full overflow-y-auto">
             <div className="px-5 py-4 bg-blue-950 text-white flex items-center justify-between">
               <h3 className="font-bold text-sm">Onboard New Church & Club</h3>
               <button 
@@ -1666,16 +1674,23 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">District</label>
-                <select
+                <label htmlFor="new-church-district" className="block font-semibold text-slate-700 mb-1">District *</label>
+                <input
+                  id="new-church-district"
+                  type="text"
+                  list="new-church-district-options"
+                  required
+                  pattern={'.*\\S.*'}
                   value={newDistrict}
                   onChange={(e) => setNewDistrict(e.target.value)}
+                  placeholder="Choose an existing district or type a new one"
+                  aria-describedby="new-church-district-help"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
-                >
-                  <option value="District 4 (Cascade Metro)">District 4 (Cascade Metro)</option>
-                  <option value="District 2 (Valley East)">District 2 (Valley East)</option>
-                  <option value="District 1 (Coastal)">District 1 (Coastal)</option>
-                </select>
+                />
+                <datalist id="new-church-district-options">
+                  {districtOptions(organizations, currentOrg.missionName).map(name => <option key={name} value={name} />)}
+                </datalist>
+                <p id="new-church-district-help" className="mt-1.5 text-[11px] leading-relaxed text-slate-500">Select a district already used by a church, or enter a new district name. This church will belong to {currentOrg.missionName}.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
