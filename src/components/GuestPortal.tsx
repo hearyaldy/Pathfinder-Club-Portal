@@ -21,6 +21,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
+import { branchClub, formatClubDues } from '../utils/currency';
 import { Member } from '../types/club';
 import heroBanner from '../assets/images/pathfinder_hero_banner_1792569497907.jpg';
 import adventurerActivities from '../assets/images/adventurer_kids_activities_1792569498236.jpg';
@@ -42,7 +43,7 @@ export const GuestPortal: React.FC<GuestPortalProps> = ({
   onOpenAuthModal,
   onViewPass,
 }) => {
-  const { currentOrg, currentClub, organizations, setCurrentOrgId, events, members, units } = useClub();
+  const { currentOrg, currentClub, clubs, organizations, setCurrentOrgId, events, members, units } = useClub();
 
   // Quick lookup state on guest home
   const [quickSearch, setQuickSearch] = useState('');
@@ -352,7 +353,7 @@ export const GuestPortal: React.FC<GuestPortalProps> = ({
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs text-slate-500 font-medium">Annual Club Dues: ${currentOrg.annualDuesAmount}</span>
+                  <span className="text-xs text-slate-500 font-medium">Annual Club Dues: {formatClubDues(branchClub('Adventurers', clubs, currentClub), currentOrg)}</span>
                   <button
                     onClick={onGoToRegister}
                     className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 cursor-pointer"
@@ -398,7 +399,7 @@ export const GuestPortal: React.FC<GuestPortalProps> = ({
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs text-slate-500 font-medium">Annual Club Dues: ${currentOrg.annualDuesAmount}</span>
+                  <span className="text-xs text-slate-500 font-medium">Annual Club Dues: {formatClubDues(branchClub('Pathfinders', clubs, currentClub), currentOrg)}</span>
                   <button
                     onClick={onGoToRegister}
                     className="text-xs font-bold text-blue-900 hover:text-blue-950 flex items-center gap-1 cursor-pointer"

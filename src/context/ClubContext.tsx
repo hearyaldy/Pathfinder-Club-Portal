@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
+import { currencyCode } from '../utils/currency';
 import {
   Member,
   MemberDetails,
@@ -542,6 +543,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       charterNumber: details.charterNumber.trim(),
       meetingSchedule: details.meetingSchedule.trim(),
       annualDues: details.annualDues,
+      currency: currencyCode(details.currency ?? club.currency),
       motto: details.motto?.trim() ?? '',
     });
     if (details.name.trim() !== club.name) {

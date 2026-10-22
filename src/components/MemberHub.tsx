@@ -19,6 +19,7 @@ import {
   DollarSign 
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
+import { formatMemberDues } from '../utils/currency';
 import { Member } from '../types/club';
 
 interface MemberHubProps {
@@ -32,7 +33,7 @@ export const MemberHub: React.FC<MemberHubProps> = ({
   onViewPass,
   onOpenQrScanner 
 }) => {
-  const { members, events, attendance, units, currentOrg } = useClub();
+  const { members, events, attendance, units, allUnits, clubs, currentOrg } = useClub();
   const [searchCode, setSearchCode] = useState('');
   const [searchedMember, setSearchedMember] = useState<Member | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
@@ -242,12 +243,12 @@ export const MemberHub: React.FC<MemberHubProps> = ({
                 {/* Annual Club Dues */}
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                   <span className="text-slate-400 uppercase text-[10px] font-bold tracking-wider block">
-                    Annual Club Dues ($35)
+                    Annual Club Dues ({formatMemberDues(searchedMember, currentOrg, clubs, allUnits)})
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full ${searchedMember.duesPaid ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                     <strong className={`text-sm ${searchedMember.duesPaid ? 'text-emerald-700' : 'text-amber-800'}`}>
-                      {searchedMember.duesPaid ? '$35 Paid in Full' : 'Payment Awaiting Confirmation'}
+                      {searchedMember.duesPaid ? `${formatMemberDues(searchedMember, currentOrg, clubs, allUnits)} Paid in Full` : 'Payment Awaiting Confirmation'}
                     </strong>
                   </div>
                   <span className="text-slate-500 block text-[11px]">

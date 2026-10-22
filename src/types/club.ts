@@ -92,6 +92,7 @@ export interface DistrictItem {
 }
 
 export type ClubType = 'Pathfinder' | 'Adventurer' | 'Master Guide' | 'Ambassador' | 'Eager Beaver';
+export type CurrencyCode = 'USD' | 'MYR' | 'THB' | 'SGD' | 'BND' | 'IDR' | 'PHP' | 'VND' | 'KHR' | 'LAK' | 'MMK';
 
 export interface ClubEntity {
   id: string;
@@ -104,13 +105,14 @@ export interface ClubEntity {
   charterNumber: string;
   meetingSchedule: string;
   annualDues: number;
+  currency?: CurrencyCode; // Legacy records use USD.
   motto?: string;
   themeColor?: string;
   description?: string;
   establishedYear?: number;
 }
 
-export type ClubDetails = Pick<ClubEntity, 'name' | 'directorName' | 'directorEmail' | 'directorPhone' | 'charterNumber' | 'meetingSchedule' | 'annualDues' | 'motto'>;
+export type ClubDetails = Pick<ClubEntity, 'name' | 'directorName' | 'directorEmail' | 'directorPhone' | 'charterNumber' | 'meetingSchedule' | 'annualDues' | 'currency' | 'motto'>;
 
 export interface ChurchOrganization {
   id: string;
@@ -126,6 +128,7 @@ export interface ChurchOrganization {
   meetingSchedule: string;
   location: string;
   annualDuesAmount: number;
+  currency?: CurrencyCode; // Default for church fees; legacy records use USD.
   directorName: string;
   pastorName: string;
   requireMedicalRelease: boolean;

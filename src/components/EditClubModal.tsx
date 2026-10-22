@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
+import { CurrencySelect } from './CurrencySelect';
+import { currencyCode, currencyStep } from '../utils/currency';
 import { ClubDetails, ClubEntity } from '../types/club';
 
 interface EditClubModalProps {
@@ -16,7 +18,7 @@ export const EditClubModal: React.FC<EditClubModalProps> = ({ club, onClose, onS
     name: club.name, directorName: club.directorName,
     directorEmail: club.directorEmail ?? '', directorPhone: club.directorPhone ?? '',
     charterNumber: club.charterNumber, meetingSchedule: club.meetingSchedule,
-    annualDues: club.annualDues, motto: club.motto ?? '',
+    annualDues: club.annualDues, currency: currencyCode(club.currency), motto: club.motto ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -69,8 +71,9 @@ export const EditClubModal: React.FC<EditClubModalProps> = ({ club, onClose, onS
               <input className={inputClass} type={type} required={key === 'name' || key === 'directorName'} value={details[key] ?? ''} onChange={e => setDetails(previous => ({ ...previous, [key]: e.target.value }))} />
             </label>
           ))}
-          <label className="block text-xs font-semibold text-slate-700">Annual dues ($) *
-            <input className={inputClass} type="number" min="0" step="0.01" required value={Number.isFinite(details.annualDues) ? details.annualDues : ''} onChange={e => setDetails(previous => ({ ...previous, annualDues: e.target.valueAsNumber }))} />
+          <CurrencySelect value={currencyCode(details.currency)} onChange={currency => setDetails(previous => ({ ...previous, currency }))} label="Club fee currency" />
+          <label className="block text-xs font-semibold text-slate-700">Annual dues ({details.currency}) *
+            <input className={inputClass} type="number" min="0" step={currencyStep(details.currency)} required value={Number.isFinite(details.annualDues) ? details.annualDues : ''} onChange={e => setDetails(previous => ({ ...previous, annualDues: e.target.valueAsNumber }))} />
           </label>
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
             <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>

@@ -26,6 +26,9 @@ import {
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 import { EditUnitModal } from './EditUnitModal';
+import { CurrencySelect } from './CurrencySelect';
+import { currencyCode, currencyStep, formatClubDues } from '../utils/currency';
+import type { CurrencyCode } from '../types/club';
 import { EditClubModal } from './EditClubModal';
 import { ChurchOrganization, UserRole, ClubUnit, ClubBranch, ClubEntity, ClubType } from '../types/club';
 
@@ -95,6 +98,7 @@ export const SettingsPage: React.FC = () => {
   const [newClubCharter, setNewClubCharter] = useState('');
   const [newClubMeetingSchedule, setNewClubMeetingSchedule] = useState('');
   const [newClubAnnualDues, setNewClubAnnualDues] = useState(30);
+  const [newClubCurrency, setNewClubCurrency] = useState<CurrencyCode>(currencyCode(currentOrg.currency));
   const [newClubMotto, setNewClubMotto] = useState('');
 
   // New Division Form State
@@ -122,6 +126,8 @@ export const SettingsPage: React.FC = () => {
   React.useEffect(() => { setEditingUnit(null); setUnitSaveMessage(''); }, [currentOrgId, currentClubId, currentUser?.id]);
   React.useEffect(() => { setEditingClub(null); setClubSaveMessage(''); }, [currentOrgId, currentClubId, currentUser?.id]);
 
+  React.useEffect(() => { setNewClubCurrency(currencyCode(currentOrg.currency)); }, [currentOrgId, currentOrg.currency]);
+
   // New Unit Form State
   const [newUnitName, setNewUnitName] = useState('');
   const [newUnitBranch, setNewUnitBranch] = useState<ClubBranch>('Pathfinders');
@@ -139,6 +145,7 @@ export const SettingsPage: React.FC = () => {
   const [meetingSchedule, setMeetingSchedule] = useState(currentOrg.meetingSchedule);
   const [location, setLocation] = useState(currentOrg.location);
   const [annualDuesAmount, setAnnualDuesAmount] = useState(currentOrg.annualDuesAmount);
+  const [feeCurrency, setFeeCurrency] = useState<CurrencyCode>(currencyCode(currentOrg.currency));
   const [directorName, setDirectorName] = useState(currentOrg.directorName);
   const [pastorName, setPastorName] = useState(currentOrg.pastorName);
   const [contactEmail, setContactEmail] = useState(currentOrg.contactEmail);
@@ -147,6 +154,7 @@ export const SettingsPage: React.FC = () => {
 
   // New Church Onboarding Form State
   const [newChurchName, setNewChurchName] = useState('');
+  const [newChurchCurrency, setNewChurchCurrency] = useState<CurrencyCode>(currencyCode(currentOrg.currency));
   const [newClubName, setNewClubName] = useState('');
   const [newDistrict, setNewDistrict] = useState('District 4 (Cascade Metro)');
   const [newDirector, setNewDirector] = useState('');
@@ -161,6 +169,7 @@ export const SettingsPage: React.FC = () => {
     setMeetingSchedule(currentOrg.meetingSchedule);
     setLocation(currentOrg.location);
     setAnnualDuesAmount(currentOrg.annualDuesAmount);
+    setFeeCurrency(currencyCode(currentOrg.currency));
     setDirectorName(currentOrg.directorName);
     setPastorName(currentOrg.pastorName);
     setContactEmail(currentOrg.contactEmail);
@@ -178,6 +187,7 @@ export const SettingsPage: React.FC = () => {
       meetingSchedule,
       location,
       annualDuesAmount: Number(annualDuesAmount),
+      currency: feeCurrency,
       directorName,
       pastorName,
       contactEmail,
@@ -203,6 +213,7 @@ export const SettingsPage: React.FC = () => {
       meetingSchedule: '1st & 3rd Sabbath at 3:00 PM',
       location: 'Springfield Metro Area',
       annualDuesAmount: 35,
+      currency: newChurchCurrency,
       directorName: newDirector.trim() || 'New Director, MG',
       pastorName: newPastor.trim() || 'Pastor',
       requireMedicalRelease: true,
@@ -225,6 +236,7 @@ export const SettingsPage: React.FC = () => {
         charterNumber: created.charterNumber,
         meetingSchedule: created.meetingSchedule,
         annualDues: created.annualDuesAmount,
+        currency: newChurchCurrency,
       });
       const advClub = await addClub({
         orgId: created.id,
@@ -234,6 +246,7 @@ export const SettingsPage: React.FC = () => {
         charterNumber: `ADV-CC-${Math.floor(1000 + Math.random() * 9000)}`,
         meetingSchedule: created.meetingSchedule,
         annualDues: Math.round(created.annualDuesAmount * 0.7),
+        currency: newChurchCurrency,
       });
 
       // Auto-provision a default unit under each club
@@ -285,6 +298,7 @@ export const SettingsPage: React.FC = () => {
         charterNumber: newClubCharter.trim() || `${newClubType.substring(0, 2).toUpperCase()}-CC-${Math.floor(1000 + Math.random() * 9000)}`,
         meetingSchedule: newClubMeetingSchedule.trim() || currentOrg.meetingSchedule,
         annualDues: Number(newClubAnnualDues) || 0,
+        currency: newClubCurrency,
         motto: newClubMotto.trim() || undefined,
       });
 
@@ -536,7 +550,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
                         <span className="text-slate-500 block">Annual Dues</span>
-                        <span className="font-semibold text-slate-800">${club.annualDues}</span>
+                        <span className="font-semibold text-slate-800">{formatClubDues(club, currentOrg)}</span>
                       </div>
                       <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100 col-span-2">
                         <span className="text-slate-500 block">Meeting Schedule</span>
@@ -1009,7 +1023,7 @@ export const SettingsPage: React.FC = () => {
                       Club Director, Deputy Director, Scribe, Treasurer
                     </td>
                     <td className="py-3.5 px-4 text-slate-700">
-                      <strong>Full Operational Access for Own Club</strong>: In-depth registration review queue, dues status ($35), uniform sizes, unit rosters.
+                      <strong>Full Operational Access for Own Club</strong>: In-depth registration review queue, dues status, uniform sizes, unit rosters.
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">
                       <strong className="text-rose-700">Full Access:</strong> Allergies, asthma, dietary, doctor, parental waivers & phone.
@@ -1353,7 +1367,14 @@ export const SettingsPage: React.FC = () => {
 
       {/* TAB 3: Policy & Fee Configuration */}
       {activeTab === 'policy' && (
-        <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-xs space-y-6">
+        <form onSubmit={event => {
+          event.preventDefault();
+          updateOrganization(currentOrgId, {
+            annualDuesAmount: Number(annualDuesAmount), currency: feeCurrency,
+            requireMedicalRelease, requireBaptismVerification,
+          });
+          alert('Policy settings updated successfully!');
+        }} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-xs space-y-6">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Registration & Membership Dues Policy</h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -1370,18 +1391,22 @@ export const SettingsPage: React.FC = () => {
               <p className="text-slate-500 leading-relaxed">
                 Covers official Pathfinder or Adventurer class book, scarf, slide, insurance fees to the conference, and semester honor badges.
               </p>
-              <div className="flex items-center gap-2 pt-2">
-                <span className="text-base font-bold text-slate-900">$</span>
+              <CurrencySelect value={feeCurrency} onChange={setFeeCurrency} label="Church fee currency" />
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <label htmlFor="church-annual-dues" className="font-semibold text-slate-700">Annual fee ({feeCurrency})</label>
                 <input
+                  id="church-annual-dues"
+                  required
                   type="number"
                   min="0"
-                  max="250"
+                  step={currencyStep(feeCurrency)}
                   value={annualDuesAmount}
                   onChange={(e) => setAnnualDuesAmount(Number(e.target.value))}
                   className="w-28 px-3 py-1.5 font-mono text-base font-bold border border-slate-300 rounded-lg bg-white"
                 />
                 <span className="text-slate-500">per youth / year</span>
               </div>
+              <p className="text-slate-500">Used when a member has no club fee. Each club has its own fee and currency under Clubs. Changing currency keeps the amount you entered.</p>
             </div>
 
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
@@ -1426,21 +1451,14 @@ export const SettingsPage: React.FC = () => {
 
           <div className="pt-4 border-t border-slate-200 flex justify-end">
             <button
-              onClick={() => {
-                updateOrganization(currentOrgId, {
-                  annualDuesAmount: Number(annualDuesAmount),
-                  requireMedicalRelease,
-                  requireBaptismVerification,
-                });
-                alert('Policy settings updated successfully!');
-              }}
+              type="submit"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-900 hover:bg-blue-800 text-white font-semibold text-xs rounded-lg shadow-sm"
             >
               <Save className="w-4 h-4" />
               Save Policies
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {/* TAB 4: District Coordinator Rollup Report */}
@@ -1623,6 +1641,7 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddNewChurch} className="p-6 space-y-4 text-xs">
+              <CurrencySelect value={newChurchCurrency} onChange={setNewChurchCurrency} label="Church fee currency" />
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Church Name *</label>
                 <input
@@ -1757,16 +1776,19 @@ export const SettingsPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Annual Dues ($)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Annual Dues ({newClubCurrency})</label>
                   <input
                     type="number"
                     min={0}
+                    step={currencyStep(newClubCurrency)}
                     value={newClubAnnualDues}
                     onChange={(e) => setNewClubAnnualDues(Number(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-mono"
                   />
                 </div>
               </div>
+
+              <CurrencySelect value={newClubCurrency} onChange={setNewClubCurrency} label="Club fee currency" />
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

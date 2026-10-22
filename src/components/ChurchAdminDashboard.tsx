@@ -19,11 +19,12 @@ import {
   AlertTriangle 
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
+import { formatMemberDues } from '../utils/currency';
 import { Member, RegistrationStatus, ClubBranch } from '../types/club';
 
 export const ChurchAdminDashboard: React.FC = () => {
   const { 
-    members, 
+    members, currentOrg, clubs, allUnits,
     units, 
     updateMemberStatus, 
     assignUnit, 
@@ -383,7 +384,7 @@ export const ChurchAdminDashboard: React.FC = () => {
                               : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
                           }`}
                         >
-                          {member.duesPaid ? '$35 Paid' : 'Unpaid'}
+                          {member.duesPaid ? `${formatMemberDues(member, currentOrg, clubs, allUnits)} Paid` : 'Unpaid'}
                         </button>
                       </td>
 
@@ -624,7 +625,7 @@ export const ChurchAdminDashboard: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Club Annual Dues ($35.00)
+                    Club Annual Dues ({formatMemberDues(selectedMember, currentOrg, clubs, allUnits)})
                   </label>
                   <div className="flex items-center gap-3 pt-1">
                     <button
@@ -639,7 +640,7 @@ export const ChurchAdminDashboard: React.FC = () => {
                           : 'bg-slate-100 border-slate-300 text-slate-700'
                       }`}
                     >
-                      {selectedMember.duesPaid ? '✓ Dues Paid ($35)' : 'Mark as Paid ($35)'}
+                      {selectedMember.duesPaid ? `✓ Dues Paid (${formatMemberDues(selectedMember, currentOrg, clubs, allUnits)})` : `Mark as Paid (${formatMemberDues(selectedMember, currentOrg, clubs, allUnits)})`}
                     </button>
                     <span className="text-xs text-slate-500">
                       {selectedMember.duesPaid ? 'Payment on record' : 'Awaiting payment'}

@@ -13,6 +13,7 @@ import {
 import confetti from 'canvas-confetti';
 import heroBanner from '../assets/images/pathfinder_hero_banner_1792569497907.jpg';
 import { useClub } from '../context/ClubContext';
+import { formatClubDues } from '../utils/currency';
 import { ClubBranch, Member } from '../types/club';
 
 interface RegisterMemberProps {
@@ -24,7 +25,7 @@ export const RegisterMember: React.FC<RegisterMemberProps> = ({
   onGoToAdminQueue,
   onGoToDirectory 
 }) => {
-  const { registerMember, currentUser, units, updateMemberStatus, assignUnit, toggleDuesPaid } = useClub();
+  const { registerMember, currentUser, currentOrg, currentClub, clubs, units, updateMemberStatus, assignUnit, toggleDuesPaid } = useClub();
   const [currentStep, setCurrentStep] = useState(1);
   const [submittedMember, setSubmittedMember] = useState<Member | null>(null);
 
@@ -33,6 +34,8 @@ export const RegisterMember: React.FC<RegisterMemberProps> = ({
   const [staffAutoApprove, setStaffAutoApprove] = useState(true);
   const [staffDuesCollected, setStaffDuesCollected] = useState(false);
   const [staffSelectedUnitId, setStaffSelectedUnitId] = useState('');
+  const feeClub = clubs.find(club => club.id === units.find(unit => unit.id === staffSelectedUnitId)?.clubId) ?? currentClub;
+  const registrationFee = formatClubDues(feeClub, currentOrg);
 
   // Form State
   const [branch, setBranch] = useState<ClubBranch>('Pathfinders');
@@ -414,7 +417,7 @@ export const RegisterMember: React.FC<RegisterMemberProps> = ({
                 className="rounded text-blue-900 focus:ring-blue-900"
               />
               <label htmlFor="staffDuesCollected" className="font-semibold text-blue-950 cursor-pointer">
-                Collected Dues ($35) at Desk
+                Collected Dues ({registrationFee}) at Desk
               </label>
             </div>
           </div>
