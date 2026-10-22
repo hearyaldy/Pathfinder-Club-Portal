@@ -12,6 +12,7 @@
     "test:scoring": "node --import tsx --test src/utils/scoreUtils.test.ts",
     "test:currency": "node --import tsx --test src/utils/currency.test.ts",
     "test:district": "node --import tsx --test src/utils/district.test.ts",
+    "test:profiles": "node --import tsx --test src/utils/userProfile.test.ts",
     "seed:firebase": "tsx scripts/seedFirestore.ts",
     "set-role": "tsx scripts/setUserRole.ts"
   },

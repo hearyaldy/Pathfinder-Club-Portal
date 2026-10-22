@@ -15,6 +15,7 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { currencyCode } from '../utils/currency';
+import { assertCanDeleteUser, userProfileUpdate } from '../utils/userProfile';
 import {
   Member,
   MemberDetails,
@@ -71,11 +72,13 @@ interface ClubContextType {
   updateOrganization: (orgId: string, updates: Partial<ChurchOrganization>) => void;
   addOrganization: (newOrg: Omit<ChurchOrganization, 'id'>) => ChurchOrganization;
 
-  // Leadership (read-only here — sign-in/sign-up/sign-out go through Firebase Auth directly, see AuthModal)
+  // User profiles; sign-in/sign-up/sign-out go through Firebase Auth.
   currentUser: AuthUser | null;
   staffUsers: AuthUser[];
-  updateStaffUser: (uid: string, updates: Partial<AuthUser>) => void;
-  deleteStaffUser: (uid: string) => void;
+  staffUsersLoading: boolean;
+  staffUsersError: string;
+  updateStaffUser: (uid: string, updates: Partial<AuthUser>) => Promise<void>;
+  deleteStaffUser: (uid: string) => Promise<void>;
 
   // Clubs (a church may register more than one — Pathfinder, Adventurer, Master Guide, etc.)
   clubs: ClubEntity[]; // clubs under the current church
@@ -240,6 +243,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [organizations, setOrganizations] = useState<ChurchOrganization[]>([]);
   const [orgsLoaded, setOrgsLoaded] = useState(false);
   const [staffUsers, setStaffUsers] = useState<AuthUser[]>([]);
+  const [staffUsersLoading, setStaffUsersLoading] = useState(false);
+  const [staffUsersError, setStaffUsersError] = useState('');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [allEvents, setAllEvents] = useState<ClubEvent[]>([]);
@@ -273,7 +278,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubMembers = subscribeCollection<Member>(membersCol, setAllMembers);
     const unsubEvents = subscribeCollection<ClubEvent>(eventsCol, setAllEvents);
     const unsubAttendance = subscribeCollection<AttendanceRecord>(attendanceCol, setAllAttendance);
-    const unsubUsers = subscribeCollection<AuthUser>(usersCol, setStaffUsers);
 
     return () => {
       unsubOrgs();
@@ -283,9 +287,23 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubMembers();
       unsubEvents();
       unsubAttendance();
-      unsubUsers();
     };
   }, []);
+
+  // User records require authentication; subscribe again after sign-in.
+  useEffect(() => {
+    setStaffUsers([]);
+    setStaffUsersError('');
+    setStaffUsersLoading(!!currentUser?.id);
+    if (!currentUser?.id) return;
+    return onSnapshot(usersCol, snapshot => {
+      setStaffUsers(snapshot.docs.map(document => ({ ...document.data(), id: document.id } as AuthUser)));
+      setStaffUsersLoading(false);
+    }, () => {
+      setStaffUsersError('User accounts could not be loaded. Check your connection and permissions, then reload the page.');
+      setStaffUsersLoading(false);
+    });
+  }, [currentUser?.id]);
 
   const canManageScoring = !!currentUser && currentUser.role !== 'Parent / Member' && (
     currentUser.orgId === currentOrgId || ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role)
@@ -780,15 +798,20 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     batch.commit();
   };
 
-  // Super Admin only (enforced by Firestore rules, not just the UI): manage any leader's profile/role.
-  const updateStaffUser = (uid: string, updates: Partial<AuthUser>) => {
-    updateDoc(doc(db, 'users', uid), updates);
+  const updateStaffUser = async (uid: string, updates: Partial<AuthUser>): Promise<void> => {
+    const target = uid === currentUser?.id ? currentUser : staffUsers.find(user => user.id === uid);
+    if (!target) throw new Error('This user is no longer available.');
+    const fields = userProfileUpdate(currentUser, target, updates, staffUsers, organizations);
+    await updateDoc(doc(db, 'users', uid), fields);
   };
 
-  const deleteStaffUser = (uid: string) => {
+  const deleteStaffUser = async (uid: string): Promise<void> => {
+    const target = staffUsers.find(user => user.id === uid);
+    if (!target) throw new Error('This user is no longer available.');
+    assertCanDeleteUser(currentUser, target, staffUsers);
     // Removes the app profile (so the account loses all access), not the underlying
     // Firebase Auth login itself — deleting that requires the Admin SDK (see scripts/).
-    deleteDoc(doc(db, 'users', uid));
+    await deleteDoc(doc(db, 'users', uid));
   };
 
   const recordAttendance = (
@@ -1281,6 +1304,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addOrganization,
         currentUser,
         staffUsers,
+        staffUsersLoading,
+        staffUsersError,
         updateStaffUser,
         deleteStaffUser,
         clubs,

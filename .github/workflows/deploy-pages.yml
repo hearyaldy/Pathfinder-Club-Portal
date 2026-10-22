@@ -30,6 +30,8 @@ jobs:
         run: npm run test:currency
       - name: District tests
         run: npm run test:district
+      - name: User profile tests
+        run: npm run test:profiles
       - name: Validate Firebase configuration
         env: &firebase-env
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

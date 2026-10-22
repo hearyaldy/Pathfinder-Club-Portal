@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Compass, UserPlus, ClipboardCheck, Clock, Users, Calendar, QrCode,
-  Settings, ShieldCheck, ChevronDown, MapPin, UserCog, FileBarChart,
+  Settings, ShieldCheck, ChevronDown, MapPin, UserCog, FileBarChart, UserRound,
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 
 export type ActiveTab =
   | 'guest-home' | 'member-hub' | 'register' | 'calendar' | 'attendance'
-  | 'admin' | 'directory' | 'settings' | 'super-admin' | 'reports' | 'member-detail';
+  | 'admin' | 'directory' | 'settings' | 'super-admin' | 'reports' | 'member-detail' | 'user-profile' | 'user-detail';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div ref={tools} className="relative shrink-0">
             <button ref={toolsButton} type="button" aria-label="Account and tools" aria-expanded={toolsOpen} aria-controls="account-tools"
               onClick={() => setToolsOpen(open => !open)}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${toolsOpen || activeTab === 'settings' || activeTab === 'super-admin' || activeTab === 'reports' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${toolsOpen || activeTab === 'settings' || activeTab === 'super-admin' || activeTab === 'reports' || activeTab === 'user-profile' || activeTab === 'user-detail' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
               <ShieldCheck className="h-4 w-4" />
               <span className="hidden max-w-36 truncate sm:block">{currentUser ? currentUser.name : 'Sign in & tools'}</span>
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
@@ -97,6 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <p className="break-words text-sm font-bold text-slate-900">{currentUser?.name ?? 'Welcome'}</p>
                   <p className="text-xs text-slate-500">{currentUser?.role ?? 'Guest / Parent'}</p>
                 </div>
+                {currentUser && <button type="button" onClick={() => openTool(() => setActiveTab('user-profile'))} className={toolClass} aria-current={activeTab === 'user-profile' ? 'page' : undefined}><UserRound className="h-4 w-4 shrink-0" />My Profile</button>}
                 <button type="button" onClick={() => openTool(onOpenQrScanner)} className={toolClass}><QrCode className="h-4 w-4 shrink-0 text-amber-600" />Scan QR</button>
                 <button type="button" onClick={() => openTool(onOpenGeofenceModal)} className={toolClass}>
                   <MapPin className="h-4 w-4 shrink-0 text-blue-900" />

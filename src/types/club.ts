@@ -68,6 +68,8 @@ export type UserRole =
   | 'Unit Counselor' 
   | 'Parent / Member';
 
+export const USER_ROLES: readonly UserRole[] = ['Super Admin', 'Mission Youth Director', 'District Coordinator', 'Church Pastor', 'Club Director', 'Club Secretary', 'Unit Counselor', 'Parent / Member'];
+
 export interface AuthUser {
   id: string;
   name: string;

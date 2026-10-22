@@ -16,6 +16,7 @@ import { GeofenceSettingsModal } from './components/GeofenceSettingsModal';
 import { MemberHub } from './components/MemberHub';
 import { SuperAdminPage } from './components/SuperAdminPage';
 import { ReportPage } from './components/ReportPage';
+import { UserDetailPage } from './components/UserDetailPage';
 import { MemberDetailPage } from './components/MemberDetailPage';
 import { Member } from './types/club';
 import { Compass, ShieldCheck, MapPin } from 'lucide-react';
@@ -31,6 +32,8 @@ const AppContent: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isGeofenceModalOpen, setIsGeofenceModalOpen] = useState(false);
   const [selectedPassMember, setSelectedPassMember] = useState<Member | null>(null);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [profileReturnTab, setProfileReturnTab] = useState<ActiveTab>('guest-home');
   const [viewingMemberId, setViewingMemberId] = useState<string | null>(null);
   const [memberDetailReturnTab, setMemberDetailReturnTab] = useState<ActiveTab>('directory');
   const viewMemberDetails = (member: Member, returnTab: ActiveTab) => {
@@ -41,9 +44,10 @@ const AppContent: React.FC = () => {
 
   // Safety Auto-Redirect: If user signs out while on a protected tab, instantly switch to public guest view
   useEffect(() => {
-    if (!currentUser && ['attendance', 'admin', 'directory', 'settings', 'super-admin', 'reports', 'member-detail'].includes(activeTab)) {
+    if (!currentUser && ['attendance', 'admin', 'directory', 'settings', 'super-admin', 'reports', 'member-detail', 'user-profile', 'user-detail'].includes(activeTab)) {
       setActiveTab('guest-home');
     }
+    if (activeTab === 'user-detail' && currentUser?.role !== 'Super Admin') setActiveTab(currentUser ? 'user-profile' : 'guest-home');
     if (activeTab === 'super-admin' && currentUser?.role !== 'Super Admin') {
       setActiveTab('guest-home');
     }
@@ -54,7 +58,7 @@ const AppContent: React.FC = () => {
       {/* Top Bar Navigation */}
       <Navbar 
         activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+        setActiveTab={tab => { if (tab === 'user-profile' && activeTab !== 'user-profile' && activeTab !== 'user-detail') setProfileReturnTab(activeTab); setActiveTab(tab); }}
         onOpenQrScanner={() => setIsQrScannerOpen(true)}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenGeofenceModal={() => setIsGeofenceModalOpen(true)}
@@ -184,10 +188,13 @@ const AppContent: React.FC = () => {
           )
         )}
 
+        {activeTab === 'user-profile' && currentUser && <UserDetailPage userId={currentUser.id} onBack={() => setActiveTab(profileReturnTab)} />}
+        {activeTab === 'user-detail' && currentUser?.role === 'Super Admin' && viewingUserId && <UserDetailPage userId={viewingUserId} onBack={() => setActiveTab('super-admin')} />}
+
         {/* 11. Platform User Management (Super Admin only) */}
         {activeTab === 'super-admin' && (
           currentUser?.role === 'Super Admin' ? (
-            <SuperAdminPage />
+            <SuperAdminPage onViewUser={user => { setViewingUserId(user.id); setActiveTab('user-detail'); }} />
           ) : (
             <AccessRestricted
               pageName="Platform User Management"
