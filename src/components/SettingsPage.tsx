@@ -20,12 +20,28 @@ import {
   ShieldAlert,
   Sparkles,
   UserCheck,
-  Pencil
+  Pencil,
+  Settings2,
+  Info
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 import { EditUnitModal } from './EditUnitModal';
 import { EditClubModal } from './EditClubModal';
 import { ChurchOrganization, UserRole, ClubUnit, ClubBranch, ClubEntity, ClubType } from '../types/club';
+
+const SETTINGS_TABS = [
+  { id: 'clubs', label: 'Clubs', icon: Building2 },
+  { id: 'units', label: 'Units & divisions', icon: Compass },
+  { id: 'profile', label: 'Church & club profile', icon: Building2 },
+  { id: 'policy', label: 'Registration & fees', icon: DollarSign },
+] as const;
+
+const INFORMATION_TABS = [
+  { id: 'hierarchy', label: 'Hierarchy overview', icon: Layers },
+  { id: 'permissions', label: 'Data access guide', icon: ShieldCheck },
+  { id: 'district', label: 'District rollup', icon: Globe2 },
+  { id: 'staff', label: 'Leadership directory', icon: Users },
+] as const;
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -57,7 +73,13 @@ export const SettingsPage: React.FC = () => {
     exportDatabaseJson,
   } = useClub();
 
-  const [activeTab, setActiveTab] = useState<'clubs' | 'units' | 'hierarchy' | 'profile' | 'policy' | 'district' | 'staff' | 'permissions'>('clubs');
+  const [activeView, setActiveView] = useState<'settings' | 'information'>('settings');
+  const [settingsTab, setSettingsTab] = useState<(typeof SETTINGS_TABS)[number]['id']>('clubs');
+  const [informationTab, setInformationTab] = useState<(typeof INFORMATION_TABS)[number]['id']>('hierarchy');
+  const activeTab = activeView === 'settings' ? settingsTab : informationTab;
+  const navigationTabs = activeView === 'settings'
+    ? SETTINGS_TABS.map(tab => ({ ...tab, onSelect: () => setSettingsTab(tab.id) }))
+    : INFORMATION_TABS.map(tab => ({ ...tab, onSelect: () => setInformationTab(tab.id) }));
   const [showAddClubModal, setShowAddClubModal] = useState(false);
   const [clubSaving, setClubSaving] = useState(false);
   const [clubSaveError, setClubSaveError] = useState('');
@@ -339,23 +361,26 @@ export const SettingsPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
+      <div className="space-y-5 pb-5 border-b border-slate-200">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Club & Hierarchy Settings
+            Club & Hierarchy
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Configure church organizational levels, leadership accounts, registration policies, and multi-church federation.
+            {activeView === 'settings'
+              ? 'Manage clubs, units, church details, and registration policies.'
+              : 'Explore the organizational hierarchy, access guide, district reports, and leadership directory.'}
           </p>
         </div>
 
         {/* Current Church Switcher Dropdown */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-medium">Active Church:</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <label htmlFor="settings-church" className="text-xs text-slate-500 font-medium">Active Church:</label>
           <select
+            id="settings-church"
             value={currentOrgId}
             onChange={(e) => setCurrentOrgId(e.target.value)}
-            className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg shadow-xs text-slate-900 focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+            className="min-w-0 max-w-full px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg shadow-xs text-slate-900 focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
           >
             {organizations.map(org => (
               <option key={org.id} value={org.id}>
@@ -363,21 +388,22 @@ export const SettingsPage: React.FC = () => {
               </option>
             ))}
           </select>
-          <button
+          {activeView === 'settings' && <button
             onClick={() => setShowAddChurchModal(true)}
             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-blue-900 hover:bg-blue-800 text-white rounded-lg transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Church</span>
-          </button>
+          </button>}
 
           {clubs.length > 0 && (
             <>
-              <span className="text-xs text-slate-500 font-medium">Active Club:</span>
+              <label htmlFor="settings-club" className="text-xs text-slate-500 font-medium">Active Club:</label>
               <select
+                id="settings-club"
                 value={currentClubId}
                 onChange={(e) => setCurrentClubId(e.target.value)}
-                className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg shadow-xs text-slate-900 focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                className="min-w-0 max-w-full px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg shadow-xs text-slate-900 focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
               >
                 {clubs.map(club => (
                   <option key={club.id} value={club.id}>
@@ -390,35 +416,30 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Settings Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto no-scrollbar">
-        {[
-          { id: 'clubs', label: '1. Register Clubs', icon: Building2 },
-          { id: 'units', label: '2. Register Club Units', icon: Compass },
-          { id: 'permissions', label: '3. Tier Data Access Matrix', icon: ShieldCheck },
-          { id: 'hierarchy', label: '4. Administrative Levels & Multi-Church', icon: Layers },
-          { id: 'profile', label: '5. Church & Club Profile', icon: Building2 },
-          { id: 'policy', label: '6. Registration & Fee Policies', icon: DollarSign },
-          { id: 'district', label: '7. District Coordinator Rollup', icon: Globe2 },
-          { id: 'staff', label: '8. Leadership Directory', icon: Users },
-        ].map((tab) => {
+      <nav aria-label="Settings and information" className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xs sm:w-fit">
+        {([
+          { id: 'settings', label: 'Settings', icon: Settings2 },
+          { id: 'information', label: 'Information', icon: Info },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" aria-pressed={activeView === id} onClick={() => setActiveView(id)}
+            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-colors sm:flex-none ${activeView === id ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-900'}`}>
+            <Icon className="h-4 w-4 shrink-0" />{label}
+          </button>
+        ))}
+      </nav>
+
+      <nav aria-label={`${activeView === 'settings' ? 'Settings' : 'Information'} sections`} className="flex flex-wrap gap-x-2 border-b border-slate-200">
+        {navigationTabs.map((tab) => {
           const Icon = tab.icon;
           return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === tab.id
-                  ? 'border-blue-900 text-blue-900'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
+            <button key={tab.id} type="button" aria-current={activeTab === tab.id ? 'page' : undefined}
+              onClick={tab.onSelect}
+              className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-colors ${activeTab === tab.id ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>
+              <Icon className="w-4 h-4 shrink-0" /><span>{tab.label}</span>
             </button>
           );
         })}
-      </div>
+      </nav>
 
       {/* TAB 1: Register Clubs */}
       {activeTab === 'clubs' && (
@@ -454,7 +475,7 @@ export const SettingsPage: React.FC = () => {
                   className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col items-start justify-between gap-2 sm:flex-row">
                       <div className="space-y-1">
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-900">
                           {club.clubType}
@@ -601,7 +622,7 @@ export const SettingsPage: React.FC = () => {
 
             {/* Divisions: optional grouping of units within a club */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                   <span className="text-xs font-bold text-slate-800">Divisions</span>
                   <p className="text-[11px] text-slate-500">
@@ -692,7 +713,7 @@ export const SettingsPage: React.FC = () => {
 
             {/* Branch Filter */}
             <div className="flex items-center justify-between gap-4 pt-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-slate-600">Filter Branch:</span>
                 {(['All', 'Pathfinders', 'Adventurers'] as const).map(br => (
                   <button
@@ -724,7 +745,7 @@ export const SettingsPage: React.FC = () => {
                       className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4 flex flex-col justify-between"
                     >
                       <div className="space-y-3">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-col items-start justify-between gap-2 sm:flex-row">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -1517,13 +1538,6 @@ export const SettingsPage: React.FC = () => {
                 Staff members authorized to approve applications, take attendance, and conduct unit activities.
               </p>
             </div>
-            <button
-              onClick={() => alert('Use the Login / Registration modal in the top bar to add new leaders!')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-900 text-white rounded-lg"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Leader</span>
-            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -1573,8 +1587,8 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Data Management & Demo Reset Section */}
-      <div className="p-5 bg-slate-100 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Settings: data management */}
+      {activeView === 'settings' && <div className="p-5 bg-slate-100 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
             Organization Data & Backups
@@ -1592,7 +1606,7 @@ export const SettingsPage: React.FC = () => {
             <span>Export Database JSON</span>
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Add Church Modal */}
       {showAddChurchModal && (
