@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Compass, UserPlus, ClipboardCheck, Clock, Users, Calendar, QrCode,
-  Settings, ShieldCheck, ChevronDown, MapPin, UserCog,
+  Settings, ShieldCheck, ChevronDown, MapPin, UserCog, FileBarChart,
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 
 export type ActiveTab =
   | 'guest-home' | 'member-hub' | 'register' | 'calendar' | 'attendance'
-  | 'admin' | 'directory' | 'settings' | 'super-admin';
+  | 'admin' | 'directory' | 'settings' | 'super-admin' | 'reports' | 'member-detail';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div ref={tools} className="relative shrink-0">
             <button ref={toolsButton} type="button" aria-label="Account and tools" aria-expanded={toolsOpen} aria-controls="account-tools"
               onClick={() => setToolsOpen(open => !open)}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${toolsOpen || activeTab === 'settings' || activeTab === 'super-admin' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${toolsOpen || activeTab === 'settings' || activeTab === 'super-admin' || activeTab === 'reports' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
               <ShieldCheck className="h-4 w-4" />
               <span className="hidden max-w-36 truncate sm:block">{currentUser ? currentUser.name : 'Sign in & tools'}</span>
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
@@ -103,6 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>Location settings<span className="block text-xs font-normal text-slate-500">{distanceToCurrentChurch !== null ? `${distanceToCurrentChurch} mi from church` : geoSettings.enabled ? 'Geofencing enabled' : 'Geofencing disabled'}</span></span>
                 </button>
                 {currentUser && <button type="button" onClick={() => openTool(() => setActiveTab('settings'))} className={toolClass} aria-current={activeTab === 'settings' ? 'page' : undefined}><Settings className="h-4 w-4 shrink-0" />Settings & Levels</button>}
+                {currentUser && <button type="button" onClick={() => openTool(() => setActiveTab('reports'))} className={toolClass} aria-current={activeTab === 'reports' ? 'page' : undefined}><FileBarChart className="h-4 w-4 shrink-0" />Reports</button>}
                 {currentUser?.role === 'Super Admin' && <button type="button" onClick={() => openTool(() => setActiveTab('super-admin'))} className={toolClass} aria-current={activeTab === 'super-admin' ? 'page' : undefined}><UserCog className="h-4 w-4 shrink-0" />Manage Users</button>}
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <button type="button" onClick={() => openTool(onOpenAuthModal)} className={toolClass}><ShieldCheck className="h-4 w-4 shrink-0" />{currentUser ? 'Account & Sign Out' : 'Leader Sign In'}</button>

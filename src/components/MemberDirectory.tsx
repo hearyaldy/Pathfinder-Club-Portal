@@ -14,21 +14,19 @@ import {
 } from 'lucide-react';
 import { useClub } from '../context/ClubContext';
 import { ClubBranch, Member } from '../types/club';
-import { EditMemberModal } from './EditMemberModal';
 
 interface MemberDirectoryProps {
   onSelectMemberPass: (member: Member) => void;
   onGoToRegister: () => void;
+  onViewMemberDetails: (member: Member) => void;
 }
 
-export const MemberDirectory: React.FC<MemberDirectoryProps> = ({ 
+export const MemberDirectory: React.FC<MemberDirectoryProps> = ({
   onSelectMemberPass,
-  onGoToRegister 
+  onGoToRegister,
+  onViewMemberDetails,
 }) => {
   const { members, units, currentUser, currentOrgId } = useClub();
-  const [editingMember, setEditingMember] = useState<Member | null>(null);
-  const [saveMessage, setSaveMessage] = useState('');
-  React.useEffect(() => { setEditingMember(null); setSaveMessage(''); }, [currentOrgId, currentUser?.id]);
   const canEdit = (member: Member) => !!currentUser && currentUser.role !== 'Parent / Member' && (
     currentUser.orgId === member.orgId || ['Super Admin', 'Mission Youth Director', 'District Coordinator'].includes(currentUser.role)
   );
@@ -83,7 +81,6 @@ export const MemberDirectory: React.FC<MemberDirectoryProps> = ({
       </div>
 
       {/* Filter Toolbar */}
-      {saveMessage && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{saveMessage}</p>}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Branch Filter */}
@@ -170,7 +167,9 @@ export const MemberDirectory: React.FC<MemberDirectoryProps> = ({
                 {filteredMembers.map(m => (
                   <tr key={m.id} className="hover:bg-slate-50">
                     <td className="py-2.5 px-3 font-bold text-slate-900">
-                      {m.firstName} {m.lastName}
+                      <button type="button" onClick={() => onViewMemberDetails(m)} className="cursor-pointer hover:text-blue-900 hover:underline">
+                        {m.firstName} {m.lastName}
+                      </button>
                     </td>
                     <td className="py-2.5 px-3 text-slate-700">
                       {m.className} ({m.unitName || 'Unassigned'})
@@ -228,9 +227,11 @@ export const MemberDirectory: React.FC<MemberDirectoryProps> = ({
                         {member.firstName[0]}{member.lastName[0]}
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-900 text-sm leading-tight">
-                          {member.firstName} {member.lastName}
-                        </h3>
+                        <button type="button" onClick={() => onViewMemberDetails(member)} className="text-left">
+                          <h3 className="font-bold text-slate-900 text-sm leading-tight cursor-pointer hover:text-blue-900 hover:underline">
+                            {member.firstName} {member.lastName}
+                          </h3>
+                        </button>
                         <span className="font-mono text-xs text-slate-500">
                           {member.registrationNumber}
                         </span>
@@ -281,7 +282,7 @@ export const MemberDirectory: React.FC<MemberDirectoryProps> = ({
                     Uniform: {member.uniformSize}
                   </span>
                   {canEdit(member) && (
-                    <button onClick={() => { setSaveMessage(''); setEditingMember(member); }}
+                    <button onClick={() => onViewMemberDetails(member)}
                       aria-label={`Edit details for ${member.firstName} ${member.lastName}`}
                       className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">
                       <Pencil className="h-3.5 w-3.5" /> Edit Details
@@ -299,11 +300,6 @@ export const MemberDirectory: React.FC<MemberDirectoryProps> = ({
             ))
           )}
         </div>
-      )}
-      {editingMember && canEdit(editingMember) && (
-        <EditMemberModal key={editingMember.id} member={editingMember}
-          onClose={() => setEditingMember(null)}
-          onSaved={() => { setEditingMember(null); setSaveMessage('Member details saved.'); }} />
       )}
     </div>
   );

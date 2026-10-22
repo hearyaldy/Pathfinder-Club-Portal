@@ -1,48 +1,105 @@
 import { AttendanceStatus, ClubEvent } from '../types/club';
 
-export interface EvaluationScores {
-  marchingDrillScore: number;
-  uniformScore: number;
-  disciplineScore: number;
-  investitureBonusScore?: number;
-}
+export const ATTENDANCE_SCORE = 10;
 
-export const SCORE_CATEGORY_MAX = {
-  ATTENDANCE: 10,
-  MARCHING_DRILL: 20,
-  UNIFORM: 20,
-  DISCIPLINE: 20,
-  INVESTITURE_BONUS: 10,
-} as const;
+export const MEMBER_UNIFORM_ITEMS = [
+  { key: 'topsPass', label: 'Tops (Polo)' },
+  { key: 'pantsPass', label: 'Pants' },
+  { key: 'beltPass', label: 'Belt' },
+  { key: 'socksPass', label: 'Socks' },
+  { key: 'shoesPass', label: 'Shoes' },
+  { key: 'neckerchiefPass', label: 'Neckerchief' },
+  { key: 'sliderPass', label: 'Slider' },
+  { key: 'capCordSashPatchesPass', label: 'Cap/Cord/Sash/Patches' },
+] as const;
+
+export type UniformItemKey = (typeof MEMBER_UNIFORM_ITEMS)[number]['key'];
+export type UniformTicks = Record<UniformItemKey, boolean>;
 
 export function isInvestitureEvent(eventType: ClubEvent['type']): boolean {
   return eventType === 'Investiture';
 }
 
-// Regular events: Attendance(10) + Drill(20) + Uniform(20) + Discipline(20) = 70.
-// Investiture events add a 10-point "Investiture Readiness" bonus category = 80.
-export function getMaxScoreForEvent(eventType: ClubEvent['type']): number {
-  const base = SCORE_CATEGORY_MAX.ATTENDANCE + SCORE_CATEGORY_MAX.MARCHING_DRILL + SCORE_CATEGORY_MAX.UNIFORM + SCORE_CATEGORY_MAX.DISCIPLINE;
-  return isInvestitureEvent(eventType) ? base + SCORE_CATEGORY_MAX.INVESTITURE_BONUS : base;
+// Full mark stays 70 for every event type except Investiture, which is 80 —
+// unchanged from the previous rubric's totals.
+export function getMemberMaxScore(eventType: ClubEvent['type']): number {
+  return isInvestitureEvent(eventType) ? 80 : 70;
 }
 
-export function calculateScore(eventType: ClubEvent['type'], status: AttendanceStatus | undefined, scores: EvaluationScores) {
-  const categories = [
-    [scores.marchingDrillScore, 20, 'Marching / drill'],
-    [scores.uniformScore, 20, 'Uniform'],
-    [scores.disciplineScore, 20, 'Discipline'],
-    [scores.investitureBonusScore ?? 0, 10, 'Investiture bonus'],
-  ] as const;
-  for (const [value, maximum, label] of categories) {
-    if (!Number.isInteger(value) || value < 0 || value > maximum) {
-      throw new Error(`${label} must be a whole number between 0 and ${maximum}.`);
+export interface MemberScoreResult {
+  attendanceScore: number;
+  totalScore: number;
+  maxScore: number;
+}
+
+// The 8 uniform items evenly split whatever's left after Attendance's fixed
+// 10 points (60/8 = 7.5 for a 70-point event, 70/8 = 8.75 for Investiture).
+export function calculateMemberScore(
+  eventType: ClubEvent['type'],
+  attendanceStatus: AttendanceStatus | undefined,
+  ticks: UniformTicks
+): MemberScoreResult {
+  for (const { key } of MEMBER_UNIFORM_ITEMS) {
+    if (typeof ticks[key] !== 'boolean') {
+      throw new Error(`"${key}" must be ticked or unticked.`);
     }
   }
-  const attendanceScore = status === 'Present' || status === 'Late' ? SCORE_CATEGORY_MAX.ATTENDANCE : 0;
-  const investitureBonusScore = isInvestitureEvent(eventType) ? (scores.investitureBonusScore ?? 0) : undefined;
-  return {
-    attendanceScore, investitureBonusScore,
-    maxScore: getMaxScoreForEvent(eventType),
-    totalScore: attendanceScore + scores.marchingDrillScore + scores.uniformScore + scores.disciplineScore + (investitureBonusScore ?? 0),
-  };
+  const maxScore = getMemberMaxScore(eventType);
+  const perItemValue = (maxScore - ATTENDANCE_SCORE) / MEMBER_UNIFORM_ITEMS.length;
+  const attendanceScore = attendanceStatus === 'Present' || attendanceStatus === 'Late' ? ATTENDANCE_SCORE : 0;
+  const uniformScore = MEMBER_UNIFORM_ITEMS.reduce((sum, item) => sum + (ticks[item.key] ? perItemValue : 0), 0);
+  return { attendanceScore, totalScore: attendanceScore + uniformScore, maxScore };
+}
+
+export const DRILL_COMMANDS = [
+  { key: 'fallIn', label: 'Fall In' },
+  { key: 'coverDressRightDress', label: 'Cover / Dress Right Dress' },
+  { key: 'recoverReadyFront', label: 'Recover / Ready Front' },
+  { key: 'paradeRest', label: 'Parade Rest' },
+  { key: 'countOff', label: 'Count Off' },
+  { key: 'attention', label: 'Attention' },
+  { key: 'leftRightFace', label: 'Left Face / Right Face' },
+  { key: 'aboutFace', label: 'About Face' },
+  { key: 'markTimeMarch', label: 'Mark Time March' },
+  { key: 'forwardMarch', label: 'Forward March' },
+  { key: 'readyHalt', label: 'Ready Halt' },
+  { key: 'presentArms', label: 'Present Arms' },
+  { key: 'orderArms', label: 'Order Arms' },
+  { key: 'dismiss', label: 'Dismiss' },
+] as const;
+
+export type DrillCommandKey = (typeof DRILL_COMMANDS)[number]['key'];
+export type DrillCommandScores = Record<DrillCommandKey, number>;
+
+export const MAX_COMMAND_SCORE = 10;
+export const DRILL_MAX_SCORE = DRILL_COMMANDS.length * MAX_COMMAND_SCORE; // 140
+
+export interface DrillScoreResult {
+  commandSubtotal: number;
+  totalScore: number;
+  maxScore: number;
+}
+
+// Each command is the evaluator's own 0-10 judgment call (not a tick). The two
+// demerit fields are raw points the evaluator deducts directly — no cap on
+// how many points a demerit can cost, the total just floors at 0.
+export function calculateDrillScore(
+  commandScores: DrillCommandScores,
+  demeritUnitCaptain: number,
+  demeritMembers: number
+): DrillScoreResult {
+  for (const { key, label } of DRILL_COMMANDS) {
+    const value = commandScores[key];
+    if (!Number.isInteger(value) || value < 0 || value > MAX_COMMAND_SCORE) {
+      throw new Error(`"${label}" must be a whole number between 0 and ${MAX_COMMAND_SCORE}.`);
+    }
+  }
+  for (const [label, value] of [['Demerit (Unit Captain)', demeritUnitCaptain], ['Demerit (Members)', demeritMembers]] as const) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`"${label}" must be a number of 0 or more.`);
+    }
+  }
+  const commandSubtotal = DRILL_COMMANDS.reduce((sum, cmd) => sum + commandScores[cmd.key], 0);
+  const totalScore = Math.max(0, commandSubtotal - demeritUnitCaptain - demeritMembers);
+  return { commandSubtotal, totalScore, maxScore: DRILL_MAX_SCORE };
 }

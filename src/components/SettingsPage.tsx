@@ -76,12 +76,16 @@ export const SettingsPage: React.FC = () => {
   const [newClubMotto, setNewClubMotto] = useState('');
 
   // New Division Form State
+  const [newDivisionNumber, setNewDivisionNumber] = useState('');
   const [newDivisionName, setNewDivisionName] = useState('');
   const [newDivisionAgeRange, setNewDivisionAgeRange] = useState('');
   const [newDivisionLeaderName, setNewDivisionLeaderName] = useState('');
   const [newDivisionLeaderPhone, setNewDivisionLeaderPhone] = useState('');
+  const [newDivisionClubId, setNewDivisionClubId] = useState(currentClubId);
 
-  // New Unit Form: optional Division assignment
+  // New Unit Form: which club it belongs to (relevant when the church has more than one), plus optional Division
+  const [newUnitClubId, setNewUnitClubId] = useState(currentClubId);
+  const [newUnitNumber, setNewUnitNumber] = useState('');
   const [newUnitDivisionId, setNewUnitDivisionId] = useState('');
 
   const [unitBranchFilter, setUnitBranchFilter] = useState<'All' | 'Pathfinders' | 'Adventurers'>('All');
@@ -283,11 +287,13 @@ export const SettingsPage: React.FC = () => {
 
   const handleCreateUnit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUnitName.trim()) return;
+    if (!newUnitName.trim() || !newUnitClubId) return;
 
     addUnit({
       orgId: currentOrgId,
+      clubId: newUnitClubId,
       divisionId: newUnitDivisionId || undefined,
+      unitNumber: newUnitNumber.trim() || undefined,
       name: newUnitName.trim(),
       branch: newUnitBranch,
       counselorName: newCounselorName.trim() || 'Unit Counselor',
@@ -299,6 +305,7 @@ export const SettingsPage: React.FC = () => {
 
     setShowAddUnitModal(false);
     setNewUnitName('');
+    setNewUnitNumber('');
     setNewCounselorName('');
     setNewCounselorPhone('');
     setNewMotto('');
@@ -307,11 +314,12 @@ export const SettingsPage: React.FC = () => {
 
   const handleCreateDivision = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDivisionName.trim() || !currentClubId) return;
+    if (!newDivisionName.trim() || !newDivisionClubId) return;
 
     addDivision({
       orgId: currentOrgId,
-      clubId: currentClubId,
+      clubId: newDivisionClubId,
+      divisionNumber: newDivisionNumber.trim() || undefined,
       name: newDivisionName.trim(),
       ageRange: newDivisionAgeRange.trim() || undefined,
       leaderName: newDivisionLeaderName.trim() || undefined,
@@ -319,6 +327,7 @@ export const SettingsPage: React.FC = () => {
     });
 
     setShowAddDivisionModal(false);
+    setNewDivisionNumber('');
     setNewDivisionName('');
     setNewDivisionAgeRange('');
     setNewDivisionLeaderName('');
@@ -528,7 +537,7 @@ export const SettingsPage: React.FC = () => {
                         <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 text-[10px]">
                           {clubDivisions.map(div => (
                             <span key={div.id} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
-                              {div.name} ({clubUnits.filter(u => u.divisionId === div.id).length} units)
+                              {div.divisionNumber && `#${div.divisionNumber} · `}{div.name} ({clubUnits.filter(u => u.divisionId === div.id).length} units)
                             </span>
                           ))}
                           {ungroupedCount > 0 && (
@@ -582,7 +591,7 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <button
-                onClick={() => setShowAddUnitModal(true)}
+                onClick={() => { setNewUnitClubId(currentClubId); setShowAddUnitModal(true); }}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 <Plus className="w-4 h-4 text-amber-400" />
@@ -590,17 +599,17 @@ export const SettingsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Divisions: optional grouping of units within this club */}
+            {/* Divisions: optional grouping of units within a club */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <span className="text-xs font-bold text-slate-800">Divisions in this club</span>
+                  <span className="text-xs font-bold text-slate-800">Divisions</span>
                   <p className="text-[11px] text-slate-500">
-                    Optional — group units together (e.g. a Teen Division and a Junior Division) if this club is large enough to need it.
+                    Optional — group units together (e.g. a Teen Division and a Junior Division) if a club is large enough to need it.
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowAddDivisionModal(true)}
+                  onClick={() => { setNewDivisionClubId(currentClubId); setShowAddDivisionModal(true); }}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-slate-800 shrink-0 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -615,7 +624,7 @@ export const SettingsPage: React.FC = () => {
                       key={div.id}
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px]"
                     >
-                      <span className="font-bold text-slate-900">{div.name}</span>
+                      <span className="font-bold text-slate-900">{div.divisionNumber && `#${div.divisionNumber} · `}{div.name}</span>
                       {div.ageRange && <span className="text-slate-500">{div.ageRange}</span>}
                       <span className="text-slate-400">·</span>
                       <span className="text-slate-600">{units.filter(u => u.divisionId === div.id).length} unit(s)</span>
@@ -737,6 +746,7 @@ export const SettingsPage: React.FC = () => {
                               )}
                             </div>
                             <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
+                              {unit.unitNumber && <span className="text-slate-400 font-mono mr-1.5">#{unit.unitNumber}</span>}
                               {unit.name}
                             </h3>
                           </div>
@@ -853,7 +863,7 @@ export const SettingsPage: React.FC = () => {
                   Create your first Pathfinder or Adventurer unit patrol (e.g. Golden Eagles, Busy Bees) to begin grouping your club members.
                 </p>
                 <button
-                  onClick={() => setShowAddUnitModal(true)}
+                  onClick={() => { setNewUnitClubId(currentClubId); setShowAddUnitModal(true); }}
                   className="px-4 py-2 bg-blue-900 text-white font-bold text-xs rounded-xl shadow-xs"
                 >
                   Register First Unit
@@ -1833,7 +1843,7 @@ export const SettingsPage: React.FC = () => {
                 <Layers className="w-5 h-5 text-amber-400" />
                 <div>
                   <h3 className="font-bold text-sm">Register New Division</h3>
-                  <p className="text-[11px] text-blue-200">{currentClub?.name ?? currentOrg.clubName}</p>
+                  <p className="text-[11px] text-blue-200">{currentOrg.churchName}</p>
                 </div>
               </div>
               <button
@@ -1845,16 +1855,44 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateDivision} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Division Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={newDivisionName}
-                  onChange={(e) => setNewDivisionName(e.target.value)}
-                  placeholder="e.g. Teen Division, Junior Division"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
-                />
+              {clubs.length > 1 && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Club *</label>
+                  <select
+                    required
+                    value={newDivisionClubId}
+                    onChange={(e) => setNewDivisionClubId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                  >
+                    {clubs.map(club => (
+                      <option key={club.id} value={club.id}>{club.name} ({club.clubType})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Number</label>
+                  <input
+                    type="text"
+                    value={newDivisionNumber}
+                    onChange={(e) => setNewDivisionNumber(e.target.value)}
+                    placeholder="e.g. 1"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-mono"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Division Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newDivisionName}
+                    onChange={(e) => setNewDivisionName(e.target.value)}
+                    placeholder="e.g. Teen Division, Junior Division"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1920,10 +1958,10 @@ export const SettingsPage: React.FC = () => {
                 <Compass className="w-5 h-5 text-amber-400" />
                 <div>
                   <h3 className="font-bold text-sm">Register New Club Unit</h3>
-                  <p className="text-[11px] text-blue-200">{currentClub?.name ?? currentOrg.clubName}</p>
+                  <p className="text-[11px] text-blue-200">{currentOrg.churchName}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowAddUnitModal(false)}
                 className="text-blue-200 hover:text-white cursor-pointer"
               >
@@ -1932,33 +1970,64 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateUnit} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Unit Patrol Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={newUnitName}
-                  onChange={(e) => setNewUnitName(e.target.value)}
-                  placeholder="e.g. Peregrine Falcons, Busy Bees, Silver Wolves"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
-                />
-              </div>
-
-              {divisions.length > 0 && (
+              {clubs.length > 1 && (
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Division (optional)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Club *</label>
                   <select
-                    value={newUnitDivisionId}
-                    onChange={(e) => setNewUnitDivisionId(e.target.value)}
+                    required
+                    value={newUnitClubId}
+                    onChange={(e) => { setNewUnitClubId(e.target.value); setNewUnitDivisionId(''); }}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
                   >
-                    <option value="">No division</option>
-                    {divisions.map(div => (
-                      <option key={div.id} value={div.id}>{div.name}</option>
+                    {clubs.map(club => (
+                      <option key={club.id} value={club.id}>{club.name} ({club.clubType})</option>
                     ))}
                   </select>
                 </div>
               )}
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Number</label>
+                  <input
+                    type="text"
+                    value={newUnitNumber}
+                    onChange={(e) => setNewUnitNumber(e.target.value)}
+                    placeholder="e.g. 1"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-mono"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Unit Patrol Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newUnitName}
+                    onChange={(e) => setNewUnitName(e.target.value)}
+                    placeholder="e.g. Peregrine Falcons, Busy Bees, Silver Wolves"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                  />
+                </div>
+              </div>
+
+              {(() => {
+                const divisionsForSelectedClub = allDivisions.filter(d => d.clubId === newUnitClubId);
+                return divisionsForSelectedClub.length > 0 && (
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Division (optional)</label>
+                    <select
+                      value={newUnitDivisionId}
+                      onChange={(e) => setNewUnitDivisionId(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:outline-hidden font-medium"
+                    >
+                      <option value="">No division</option>
+                      {divisionsForSelectedClub.map(div => (
+                        <option key={div.id} value={div.id}>{div.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

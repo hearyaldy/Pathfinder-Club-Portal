@@ -1,21 +1,54 @@
 export type ClubBranch = 'Adventurers' | 'Pathfinders' | 'Staff';
 
-export type AdventurerClass = 
-  | 'Little Lamb' 
-  | 'Eager Beaver' 
-  | 'Busy Bee' 
-  | 'Sunbeam' 
-  | 'Builder' 
+export type AdventurerClass =
+  | 'Little Lamb'
+  | 'Eager Beaver'
+  | 'Busy Bee'
+  | 'Sunbeam'
+  | 'Builder'
   | 'Helping Hand';
 
-export type PathfinderClass = 
-  | 'Friend' 
-  | 'Companion' 
-  | 'Explorer' 
-  | 'Ranger' 
-  | 'Voyager' 
-  | 'Guide' 
+export const ADVENTURER_CLASSES: AdventurerClass[] = [
+  'Little Lamb', 'Eager Beaver', 'Busy Bee', 'Sunbeam', 'Builder', 'Helping Hand',
+];
+
+export type PathfinderClass =
+  | 'Friend'
+  | 'Companion'
+  | 'Explorer'
+  | 'Ranger'
+  | 'Voyager'
+  | 'Guide'
   | 'TLT / Master Guide';
+
+export const PATHFINDER_CLASSES: PathfinderClass[] = [
+  'Friend', 'Companion', 'Explorer', 'Ranger', 'Voyager', 'Guide', 'TLT / Master Guide',
+];
+
+// The 8 official Pathfinder Honor categories (General Conference Youth Ministries).
+export const HONOR_CATEGORIES = [
+  'Arts, Crafts and Hobbies',
+  'Health and Science',
+  'Household Arts',
+  'Nature',
+  'Outdoor Industries',
+  'Recreation',
+  'Spiritual Growth, Outreach and Heritage',
+  'Vocational',
+] as const;
+export type HonorCategory = typeof HONOR_CATEGORIES[number];
+
+export interface MemberHonor {
+  id: string;
+  orgId: string;
+  memberId: string;
+  category: HonorCategory;
+  honorName: string; // e.g. "Camping Skills I" — no built-in master catalog, recorded by name
+  status: 'In Progress' | 'Completed';
+  dateEarned?: string;
+  instructorName?: string;
+  notes?: string;
+}
 
 export type RegistrationStatus = 
   | 'Pending Review' 
@@ -131,6 +164,7 @@ export interface Division {
   id: string;
   orgId: string;
   clubId: string; // Club this division belongs to
+  divisionNumber?: string; // e.g. "1", "A" — official roster label, separate from the descriptive name
   name: string; // e.g. "Teen Division", "Junior Division"
   ageRange?: string;
   leaderName?: string;
@@ -143,6 +177,7 @@ export interface ClubUnit {
   orgId: string;
   clubId?: string; // Linked specific club in church (e.g. Pathfinder vs Adventurer)
   divisionId?: string; // Optional grouping within the club (not every club uses divisions)
+  unitNumber?: string; // e.g. "1", "2A" — official roster label, separate from the descriptive name
   name: string;
   branch: ClubBranch;
   counselorName: string;
@@ -235,13 +270,78 @@ export interface MemberEvaluation {
   eventId: string;
   memberId: string;
   unitId?: string; // denormalized at scoring time, so the leaderboard holds up even if the member later changes units
-  attendanceScore: number; // 0-10, auto-derived from the member's attendance record for this event
-  marchingDrillScore: number; // 0-20
-  uniformScore: number; // 0-20
-  disciplineScore: number; // 0-20
-  investitureBonusScore?: number; // 0-10, only set for Investiture events
+  attendanceScore: number; // 0-10, auto-derived from the member's attendance record for this event (read-only, not a tick)
+  topsPass: boolean;
+  pantsPass: boolean;
+  beltPass: boolean;
+  socksPass: boolean;
+  shoesPass: boolean;
+  neckerchiefPass: boolean;
+  sliderPass: boolean;
+  capCordSashPatchesPass: boolean;
   totalScore: number;
   maxScore: number; // 70 normally, 80 for Investiture events
   notes?: string;
   evaluatedAt: string;
+}
+
+export interface UnitDrillEvaluation {
+  id: string; // `${eventId}_${unitId}`
+  orgId: string;
+  eventId: string;
+  unitId: string;
+  evaluatorName: string;
+  fallIn: number; // 0-10 each, the evaluator's judgment call
+  coverDressRightDress: number;
+  recoverReadyFront: number;
+  paradeRest: number;
+  countOff: number;
+  attention: number;
+  leftRightFace: number;
+  aboutFace: number;
+  markTimeMarch: number;
+  forwardMarch: number;
+  readyHalt: number;
+  presentArms: number;
+  orderArms: number;
+  dismiss: number;
+  demeritUnitCaptain: number; // raw points deducted, no upper limit
+  demeritMembers: number;
+  commandSubtotal: number;
+  totalScore: number; // commandSubtotal minus both demerits, floored at 0
+  maxScore: number; // 140 (14 commands x 10)
+  evaluatedAt: string;
+}
+
+export interface ScopeStatBlock {
+  memberCount: number;
+  approvedCount: number;
+  pendingCount: number;
+  needsClarificationCount: number;
+  archivedCount: number;
+  duesPaidCount: number;
+  eligibleAttendanceCount: number;
+  presentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  absentCount: number;
+  attendanceRate: number; // 0-100
+  memberEvaluationCount: number;
+  memberEvaluationAverageScore: number; // raw points earned, averaged
+  memberEvaluationAverageMaxScore: number; // raw full mark, averaged (events in range may mix 70/80 full marks)
+  memberEvaluationAveragePercentage: number; // 0-100
+  drillEvaluationCount: number;
+  drillAverageScore: number; // raw points earned, averaged
+  drillAverageMaxScore: number; // raw full mark, averaged (always 140 today)
+  drillAveragePercentage: number; // 0-100
+}
+
+export interface UnitBreakdownRow extends ScopeStatBlock {
+  unitId: string;
+  unitName: string;
+  branch: ClubBranch;
+}
+
+export interface ScopeReport extends ScopeStatBlock {
+  unitBreakdown: UnitBreakdownRow[];
 }

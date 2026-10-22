@@ -15,6 +15,8 @@ import { AuthModal } from './components/AuthModal';
 import { GeofenceSettingsModal } from './components/GeofenceSettingsModal';
 import { MemberHub } from './components/MemberHub';
 import { SuperAdminPage } from './components/SuperAdminPage';
+import { ReportPage } from './components/ReportPage';
+import { MemberDetailPage } from './components/MemberDetailPage';
 import { Member } from './types/club';
 import { Compass, ShieldCheck, MapPin } from 'lucide-react';
 
@@ -29,10 +31,17 @@ const AppContent: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isGeofenceModalOpen, setIsGeofenceModalOpen] = useState(false);
   const [selectedPassMember, setSelectedPassMember] = useState<Member | null>(null);
+  const [viewingMemberId, setViewingMemberId] = useState<string | null>(null);
+  const [memberDetailReturnTab, setMemberDetailReturnTab] = useState<ActiveTab>('directory');
+  const viewMemberDetails = (member: Member, returnTab: ActiveTab) => {
+    setViewingMemberId(member.id);
+    setMemberDetailReturnTab(returnTab);
+    setActiveTab('member-detail');
+  };
 
   // Safety Auto-Redirect: If user signs out while on a protected tab, instantly switch to public guest view
   useEffect(() => {
-    if (!currentUser && ['attendance', 'admin', 'directory', 'settings', 'super-admin'].includes(activeTab)) {
+    if (!currentUser && ['attendance', 'admin', 'directory', 'settings', 'super-admin', 'reports', 'member-detail'].includes(activeTab)) {
       setActiveTab('guest-home');
     }
     if (activeTab === 'super-admin' && currentUser?.role !== 'Super Admin') {
@@ -71,6 +80,7 @@ const AppContent: React.FC = () => {
             <LiveAttendance
               onOpenQrScanner={() => setIsQrScannerOpen(true)}
               onViewMemberPass={(member) => setSelectedPassMember(member)}
+              onViewMemberDetails={(member) => viewMemberDetails(member, 'attendance')}
             />
           ) : (
             <AccessRestricted
@@ -117,6 +127,7 @@ const AppContent: React.FC = () => {
             <MemberDirectory
               onSelectMemberPass={(member) => setSelectedPassMember(member)}
               onGoToRegister={() => setActiveTab('register')}
+              onViewMemberDetails={(member) => viewMemberDetails(member, 'directory')}
             />
           ) : (
             <AccessRestricted
@@ -147,7 +158,33 @@ const AppContent: React.FC = () => {
           )
         )}
 
-        {/* 9. Platform User Management (Super Admin only) */}
+        {/* 9. Statistics Report (Protected) */}
+        {activeTab === 'reports' && (
+          currentUser ? (
+            <ReportPage />
+          ) : (
+            <AccessRestricted
+              pageName="Club, Division & Unit Reports"
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              onGoToGuestHome={() => setActiveTab('guest-home')}
+            />
+          )
+        )}
+
+        {/* 10. Member Detail Page (Protected) */}
+        {activeTab === 'member-detail' && (
+          currentUser && viewingMemberId ? (
+            <MemberDetailPage memberId={viewingMemberId} onBack={() => setActiveTab(memberDetailReturnTab)} />
+          ) : (
+            <AccessRestricted
+              pageName="Member Details"
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              onGoToGuestHome={() => setActiveTab('guest-home')}
+            />
+          )
+        )}
+
+        {/* 11. Platform User Management (Super Admin only) */}
         {activeTab === 'super-admin' && (
           currentUser?.role === 'Super Admin' ? (
             <SuperAdminPage />

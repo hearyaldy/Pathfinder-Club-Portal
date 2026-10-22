@@ -27,6 +27,10 @@ import {
   Division,
   AttendanceRecord,
   MemberEvaluation,
+  UnitDrillEvaluation,
+  MemberHonor,
+  ScopeStatBlock,
+  ScopeReport,
   ClubBranch,
   RegistrationStatus,
   AttendanceStatus,
@@ -40,7 +44,12 @@ import {
   calculateDistanceMeters,
   filterChurchesByGeofence
 } from '../utils/geoUtils';
-import { calculateScore, EvaluationScores } from '../utils/scoreUtils';
+import {
+  calculateMemberScore,
+  UniformTicks,
+  calculateDrillScore,
+  DrillCommandScores,
+} from '../utils/scoreUtils';
 
 interface ClubContextType {
   // Geofencing & Location Scope
@@ -99,6 +108,13 @@ interface ClubContextType {
   toggleDuesPaid: (memberId: string) => void;
   deleteMember: (memberId: string) => void;
 
+  // Honors (advancement record)
+  memberHonors: MemberHonor[];
+  getMemberHonors: (memberId: string) => MemberHonor[];
+  addMemberHonor: (memberId: string, data: Omit<MemberHonor, 'id' | 'orgId' | 'memberId'>) => Promise<MemberHonor>;
+  updateMemberHonor: (honorId: string, updates: Partial<Omit<MemberHonor, 'id' | 'orgId' | 'memberId'>>) => Promise<void>;
+  deleteMemberHonor: (honorId: string) => Promise<void>;
+
   // Events & Attendance
   events: ClubEvent[];
   activeEventId: string;
@@ -117,7 +133,7 @@ interface ClubContextType {
   deleteEvent: (eventId: string) => Promise<void>;
   setActiveEventId: (eventId: string) => void;
 
-  // Unit Scoring / Member Evaluations
+  // Unit Scoring / Member Evaluations (Attendance + uniform checklist, per member)
   evaluations: MemberEvaluation[];
   evaluationsLoading: boolean;
   evaluationsError: string;
@@ -125,7 +141,7 @@ interface ClubContextType {
   recordEvaluation: (
     eventId: string,
     memberId: string,
-    scores: EvaluationScores,
+    ticks: UniformTicks,
     notes?: string
   ) => Promise<void>;
   getMemberEvaluationForEvent: (eventId: string, memberId: string) => MemberEvaluation | undefined;
@@ -136,6 +152,36 @@ interface ClubContextType {
     evaluationCount: number;
     averagePercentage: number;
   }>;
+
+  // Marching & Drill scoring (per unit — each evaluator submits their own sheet; averaged per event)
+  drillEvaluations: UnitDrillEvaluation[];
+  drillEvaluationsLoading: boolean;
+  drillEvaluationsError: string;
+  recordUnitDrillScore: (
+    eventId: string,
+    unitId: string,
+    evaluatorName: string,
+    commandScores: DrillCommandScores,
+    demeritUnitCaptain: number,
+    demeritMembers: number,
+    evaluationId?: string
+  ) => Promise<void>;
+  getUnitDrillEvaluationsForEvent: (eventId: string, unitId: string) => UnitDrillEvaluation[];
+  getUnitDrillAverageForEvent: (eventId: string, unitId: string) => { averageScore: number; maxScore: number; evaluatorCount: number } | undefined;
+  getUnitDrillLeaderboard: () => Array<{
+    unitId: string;
+    unitName: string;
+    branch: ClubBranch;
+    evaluationCount: number;
+    averagePercentage: number;
+  }>;
+
+  // Club / Division / Unit statistics report
+  getScopeReport: (
+    scope: { clubId?: string; divisionId?: string; unitId?: string },
+    dateFrom?: string,
+    dateTo?: string
+  ) => ScopeReport | undefined;
 
   // Utilities & Rollups
   exportDatabaseJson: () => void;
@@ -173,6 +219,8 @@ const membersCol = collection(db, 'members');
 const eventsCol = collection(db, 'events');
 const attendanceCol = collection(db, 'attendance');
 const evaluationsCol = collection(db, 'evaluations');
+const drillEvaluationsCol = collection(db, 'unitDrillScores');
+const memberHonorsCol = collection(db, 'memberHonors');
 const usersCol = collection(db, 'users');
 
 // Subscribes to a whole Firestore collection and mirrors it into local state in real time.
@@ -198,6 +246,10 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [allEvaluations, setAllEvaluations] = useState<MemberEvaluation[]>([]);
   const [evaluationsLoading, setEvaluationsLoading] = useState(false);
   const [evaluationsError, setEvaluationsError] = useState('');
+  const [allDrillEvaluations, setAllDrillEvaluations] = useState<UnitDrillEvaluation[]>([]);
+  const [allMemberHonors, setAllMemberHonors] = useState<MemberHonor[]>([]);
+  const [drillEvaluationsLoading, setDrillEvaluationsLoading] = useState(false);
+  const [drillEvaluationsError, setDrillEvaluationsError] = useState('');
   const [allUnits, setAllUnits] = useState<ClubUnit[]>([]);
   const [allClubs, setAllClubs] = useState<ClubEntity[]>([]);
   const [allDivisions, setAllDivisions] = useState<Division[]>([]);
@@ -250,6 +302,33 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAllEvaluations([]);
       setEvaluationsLoading(false);
       setEvaluationsError('Scores could not be loaded. Check your connection and scoring permissions, then reload the page.');
+    });
+  }, [canManageScoring, currentOrgId, currentUser?.id, currentUser?.role]);
+
+  useEffect(() => {
+    setAllDrillEvaluations([]);
+    setDrillEvaluationsError('');
+    setDrillEvaluationsLoading(canManageScoring);
+    if (!canManageScoring) return;
+    return onSnapshot(query(drillEvaluationsCol, where('orgId', '==', currentOrgId)), snapshot => {
+      setAllDrillEvaluations(snapshot.docs.map(document => ({ ...document.data(), id: document.id } as UnitDrillEvaluation)));
+      setDrillEvaluationsLoading(false);
+    }, error => {
+      console.error('Failed to load drill scores:', error);
+      setAllDrillEvaluations([]);
+      setDrillEvaluationsLoading(false);
+      setDrillEvaluationsError('Drill scores could not be loaded. Check your connection and scoring permissions, then reload the page.');
+    });
+  }, [canManageScoring, currentOrgId, currentUser?.id, currentUser?.role]);
+
+  useEffect(() => {
+    setAllMemberHonors([]);
+    if (!canManageScoring) return;
+    return onSnapshot(query(memberHonorsCol, where('orgId', '==', currentOrgId)), snapshot => {
+      setAllMemberHonors(snapshot.docs.map(document => ({ ...document.data(), id: document.id } as MemberHonor)));
+    }, error => {
+      console.error('Failed to load member honors:', error);
+      setAllMemberHonors([]);
     });
   }, [canManageScoring, currentOrgId, currentUser?.id, currentUser?.role]);
 
@@ -593,6 +672,28 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await updateDoc(doc(db, 'members', memberId), updates);
   };
 
+  const getMemberHonors = (memberId: string): MemberHonor[] => {
+    return allMemberHonors.filter(h => h.memberId === memberId);
+  };
+
+  const addMemberHonor = async (memberId: string, data: Omit<MemberHonor, 'id' | 'orgId' | 'memberId'>): Promise<MemberHonor> => {
+    if (!canManageScoring || !members.some(member => member.id === memberId)) throw new Error('You do not have permission to edit this member.');
+    const ref = doc(memberHonorsCol);
+    const newHonor: MemberHonor = { ...data, id: ref.id, orgId: currentOrgId, memberId };
+    await setDoc(ref, newHonor);
+    return newHonor;
+  };
+
+  const updateMemberHonor = async (honorId: string, updates: Partial<Omit<MemberHonor, 'id' | 'orgId' | 'memberId'>>): Promise<void> => {
+    if (!canManageScoring || !allMemberHonors.some(honor => honor.id === honorId && honor.orgId === currentOrgId)) throw new Error('You do not have permission to edit this honor.');
+    await updateDoc(doc(db, 'memberHonors', honorId), updates);
+  };
+
+  const deleteMemberHonor = async (honorId: string): Promise<void> => {
+    if (!canManageScoring || !allMemberHonors.some(honor => honor.id === honorId && honor.orgId === currentOrgId)) throw new Error('You do not have permission to delete this honor.');
+    await deleteDoc(doc(db, 'memberHonors', honorId));
+  };
+
   const updateMemberStatus = (memberId: string, status: RegistrationStatus, notes?: string) => {
     updateDoc(doc(db, 'members', memberId), {
       registrationStatus: status,
@@ -830,7 +931,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const recordEvaluation = async (
     eventId: string,
     memberId: string,
-    scores: EvaluationScores,
+    ticks: UniformTicks,
     notes?: string
   ): Promise<void> => {
     if (!canManageScoring) throw Object.assign(new Error('You do not have permission to score members.'), { code: 'permission-denied' });
@@ -840,7 +941,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Choose an approved member eligible for this event.');
     }
     const attendanceRecord = allAttendance.find(a => a.eventId === eventId && a.memberId === memberId);
-    const calculated = calculateScore(event.type, attendanceRecord?.status, scores);
+    const calculated = calculateMemberScore(event.type, attendanceRecord?.status, ticks);
 
     const recordId = `${eventId}_${memberId}`;
     const record: MemberEvaluation = {
@@ -850,9 +951,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       memberId,
       unitId: member?.unitId,
       ...calculated,
-      marchingDrillScore: scores.marchingDrillScore,
-      uniformScore: scores.uniformScore,
-      disciplineScore: scores.disciplineScore,
+      ...ticks,
       notes: notes?.trim() ?? '',
       evaluatedAt: new Date().toISOString(),
     };
@@ -860,12 +959,12 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Attendance points and event maximums follow the current roster and event type.
-  // Saved manual scores and the unit captured at evaluation time remain unchanged.
+  // Saved uniform ticks and the unit captured at evaluation time remain unchanged.
   const currentEvaluation = (evaluation: MemberEvaluation): MemberEvaluation => {
     const event = allEvents.find(event => event.id === evaluation.eventId);
     if (!event) return evaluation;
     const attendance = allAttendance.find(record => record.eventId === evaluation.eventId && record.memberId === evaluation.memberId);
-    try { return { ...evaluation, ...calculateScore(event.type, attendance?.status, evaluation) }; }
+    try { return { ...evaluation, ...calculateMemberScore(event.type, attendance?.status, evaluation) }; }
     catch { return evaluation; } // Legacy records can still be opened and corrected in the scoring form.
   };
 
@@ -874,11 +973,13 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return evaluation ? currentEvaluation(evaluation) : undefined;
   };
 
-  const getUnitLeaderboard = () => {
+  const buildUnitLeaderboard = (
+    evaluations: Array<{ unitId?: string; orgId: string; totalScore: number; maxScore: number }>
+  ) => {
     const orgUnits = allUnits.filter(u => u.orgId === currentOrgId);
     return orgUnits
       .map(unit => {
-        const unitEvaluations = allEvaluations.filter(e => e.unitId === unit.id && e.orgId === currentOrgId).map(currentEvaluation)
+        const unitEvaluations = evaluations.filter(e => e.unitId === unit.id && e.orgId === currentOrgId)
           .filter(e => e.maxScore > 0 && Number.isFinite(e.totalScore) && e.totalScore >= 0 && e.totalScore <= e.maxScore);
         const averagePercentage = unitEvaluations.length > 0
           ? Math.round(
@@ -895,6 +996,192 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .filter(u => u.evaluationCount > 0)
       .sort((a, b) => b.averagePercentage - a.averagePercentage);
+  };
+
+  const getUnitLeaderboard = () => buildUnitLeaderboard(allEvaluations.map(currentEvaluation));
+
+  // Each evaluator submits their own full sheet — a unit scored by 3 judges at
+  // one event gets 3 separate docs here, averaged together wherever displayed.
+  const recordUnitDrillScore = async (
+    eventId: string,
+    unitId: string,
+    evaluatorName: string,
+    commandScores: DrillCommandScores,
+    demeritUnitCaptain: number,
+    demeritMembers: number,
+    evaluationId?: string
+  ): Promise<void> => {
+    if (!canManageScoring) throw Object.assign(new Error('You do not have permission to score units.'), { code: 'permission-denied' });
+    const event = events.find(e => e.id === eventId);
+    const unit = allUnits.find(u => u.id === unitId && u.orgId === currentOrgId);
+    if (!event || !unit) throw new Error('Choose a valid event and unit for this church.');
+    if (!evaluatorName.trim()) throw new Error('Enter the evaluator\'s name.');
+    const calculated = calculateDrillScore(commandScores, demeritUnitCaptain, demeritMembers);
+
+    const ref = evaluationId ? doc(db, 'unitDrillScores', evaluationId) : doc(drillEvaluationsCol);
+    const record: UnitDrillEvaluation = {
+      id: ref.id,
+      orgId: currentOrgId,
+      eventId,
+      unitId,
+      evaluatorName: evaluatorName.trim(),
+      ...commandScores,
+      demeritUnitCaptain,
+      demeritMembers,
+      ...calculated,
+      evaluatedAt: new Date().toISOString(),
+    };
+    await setDoc(ref, record);
+  };
+
+  const getUnitDrillEvaluationsForEvent = (eventId: string, unitId: string): UnitDrillEvaluation[] => {
+    return allDrillEvaluations.filter(e => e.orgId === currentOrgId && e.eventId === eventId && e.unitId === unitId);
+  };
+
+  const getUnitDrillAverageForEvent = (eventId: string, unitId: string) => {
+    const submissions = getUnitDrillEvaluationsForEvent(eventId, unitId);
+    if (submissions.length === 0) return undefined;
+    return {
+      averageScore: submissions.reduce((sum, e) => sum + e.totalScore, 0) / submissions.length,
+      maxScore: submissions[0].maxScore,
+      evaluatorCount: submissions.length,
+    };
+  };
+
+  // Collapse multiple evaluators at one event into a single averaged entry per
+  // (unit, event) first, so a heavily-judged event doesn't out-weigh a unit
+  // that was simply scored once at several different events.
+  const averageByEvent = (
+    evaluations: Array<{ unitId?: string; eventId: string; orgId: string; totalScore: number; maxScore: number }>
+  ) => {
+    const groups = new Map<string, { unitId?: string; orgId: string; totalScore: number; maxScore: number }[]>();
+    evaluations.forEach(e => {
+      const key = `${e.unitId}_${e.eventId}`;
+      groups.set(key, [...(groups.get(key) ?? []), e]);
+    });
+    return Array.from(groups.values()).map(group => ({
+      unitId: group[0].unitId,
+      orgId: group[0].orgId,
+      maxScore: group[0].maxScore,
+      totalScore: group.reduce((sum, e) => sum + e.totalScore, 0) / group.length,
+    }));
+  };
+
+  const getUnitDrillLeaderboard = () => buildUnitLeaderboard(averageByEvent(allDrillEvaluations));
+
+  // Shared by getScopeReport for both the rolled-up totals and the per-unit breakdown rows.
+  const computeScopeStats = (memberIds: Set<string>, unitIds: Set<string>, eventIds: string[]): ScopeStatBlock => {
+    const scopedMembers = allMembers.filter(m => memberIds.has(m.id));
+
+    let present = 0, late = 0, excused = 0, absent = 0, eligibleAttendanceCount = 0;
+    eventIds.forEach(eventId => {
+      const event = allEvents.find(e => e.id === eventId);
+      if (!event) return;
+      let eligible = scopedMembers.filter(m => m.registrationStatus === 'Approved');
+      if (event.branch !== 'Both') {
+        eligible = eligible.filter(m => m.branch === event.branch || m.branch === 'Staff');
+      }
+      eligible.forEach(m => {
+        eligibleAttendanceCount++;
+        const rec = allAttendance.find(a => a.eventId === eventId && a.memberId === m.id);
+        if (!rec || rec.status === 'Absent') absent++;
+        else if (rec.status === 'Present') present++;
+        else if (rec.status === 'Late') late++;
+        else if (rec.status === 'Excused') excused++;
+      });
+    });
+    const attendanceRate = eligibleAttendanceCount > 0 ? Math.round(((present + late) / eligibleAttendanceCount) * 100) : 0;
+
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+
+    const memberEvaluations = allEvaluations
+      .filter(e => memberIds.has(e.memberId) && eventIds.includes(e.eventId))
+      .map(currentEvaluation)
+      .filter(e => e.maxScore > 0);
+    const memberEvaluationAverageScore = memberEvaluations.length > 0
+      ? round1(memberEvaluations.reduce((sum, e) => sum + e.totalScore, 0) / memberEvaluations.length)
+      : 0;
+    const memberEvaluationAverageMaxScore = memberEvaluations.length > 0
+      ? round1(memberEvaluations.reduce((sum, e) => sum + e.maxScore, 0) / memberEvaluations.length)
+      : 0;
+    const memberEvaluationAveragePercentage = memberEvaluations.length > 0
+      ? Math.round((memberEvaluations.reduce((sum, e) => sum + e.totalScore / e.maxScore, 0) / memberEvaluations.length) * 100)
+      : 0;
+
+    const drillEvaluations = averageByEvent(
+      allDrillEvaluations.filter(e => e.unitId && unitIds.has(e.unitId) && eventIds.includes(e.eventId))
+    );
+    const drillAverageScore = drillEvaluations.length > 0
+      ? round1(drillEvaluations.reduce((sum, e) => sum + e.totalScore, 0) / drillEvaluations.length)
+      : 0;
+    const drillAverageMaxScore = drillEvaluations.length > 0
+      ? round1(drillEvaluations.reduce((sum, e) => sum + e.maxScore, 0) / drillEvaluations.length)
+      : 0;
+    const drillAveragePercentage = drillEvaluations.length > 0
+      ? Math.round((drillEvaluations.reduce((sum, e) => sum + e.totalScore / e.maxScore, 0) / drillEvaluations.length) * 100)
+      : 0;
+
+    return {
+      memberCount: scopedMembers.length,
+      approvedCount: scopedMembers.filter(m => m.registrationStatus === 'Approved').length,
+      pendingCount: scopedMembers.filter(m => m.registrationStatus === 'Pending Review').length,
+      needsClarificationCount: scopedMembers.filter(m => m.registrationStatus === 'Needs Clarification').length,
+      archivedCount: scopedMembers.filter(m => m.registrationStatus === 'Archived').length,
+      duesPaidCount: scopedMembers.filter(m => m.duesPaid).length,
+      eligibleAttendanceCount,
+      presentCount: present,
+      lateCount: late,
+      excusedCount: excused,
+      absentCount: absent,
+      attendanceRate,
+      memberEvaluationCount: memberEvaluations.length,
+      memberEvaluationAverageScore,
+      memberEvaluationAverageMaxScore,
+      memberEvaluationAveragePercentage,
+      drillEvaluationCount: drillEvaluations.length,
+      drillAverageScore,
+      drillAverageMaxScore,
+      drillAveragePercentage,
+    };
+  };
+
+  const getScopeReport = (
+    scope: { clubId?: string; divisionId?: string; unitId?: string },
+    dateFrom?: string,
+    dateTo?: string
+  ): ScopeReport | undefined => {
+    if (!scope.clubId && !scope.divisionId && !scope.unitId) return undefined;
+    if (scope.clubId && !clubs.some(club => club.id === scope.clubId)) return undefined;
+    if (scope.divisionId && !allDivisions.some(division => division.id === scope.divisionId && division.orgId === currentOrgId && (!scope.clubId || division.clubId === scope.clubId))) return undefined;
+    const scopedUnits = allUnits.filter(unit => unit.orgId === currentOrgId
+      && (!scope.clubId || unit.clubId === scope.clubId)
+      && (!scope.divisionId || unit.divisionId === scope.divisionId)
+      && (!scope.unitId || unit.id === scope.unitId));
+    if (scope.unitId && scopedUnits.length === 0) return undefined;
+
+    const unitIdSet = new Set(scopedUnits.map(u => u.id));
+    const scopedMemberIds = new Set(members.filter(member =>
+      scope.unitId ? member.unitId === scope.unitId
+      : scope.divisionId ? member.divisionId === scope.divisionId || unitIdSet.has(member.unitId ?? '')
+      : member.clubId === scope.clubId || unitIdSet.has(member.unitId ?? '')
+    ).map(member => member.id));
+    const eventIds = allEvents
+      .filter(e => e.orgId === currentOrgId)
+      .filter(e => (!dateFrom || e.date >= dateFrom) && (!dateTo || e.date <= dateTo))
+      .map(e => e.id);
+
+    const overall = computeScopeStats(scopedMemberIds, unitIdSet, eventIds);
+    const unitBreakdown = scopedUnits.map(unit => {
+      const unitMemberIds = new Set(allMembers.filter(m => m.unitId === unit.id).map(m => m.id));
+      return {
+        unitId: unit.id,
+        unitName: unit.name,
+        branch: unit.branch,
+        ...computeScopeStats(unitMemberIds, new Set([unit.id]), eventIds),
+      };
+    });
+
+    return { ...overall, unitBreakdown };
   };
 
   const getEventAttendanceStats = (eventId: string) => {
@@ -1020,6 +1307,11 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         assignUnit,
         toggleDuesPaid,
         deleteMember,
+        memberHonors: allMemberHonors,
+        getMemberHonors,
+        addMemberHonor,
+        updateMemberHonor,
+        deleteMemberHonor,
         events,
         activeEventId,
         activeEvent,
@@ -1037,6 +1329,14 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         recordEvaluation,
         getMemberEvaluationForEvent,
         getUnitLeaderboard,
+        drillEvaluations: allDrillEvaluations,
+        drillEvaluationsLoading,
+        drillEvaluationsError,
+        recordUnitDrillScore,
+        getUnitDrillEvaluationsForEvent,
+        getUnitDrillAverageForEvent,
+        getUnitDrillLeaderboard,
+        getScopeReport,
         exportDatabaseJson,
         importDatabaseJson,
         getMemberAttendanceForEvent,

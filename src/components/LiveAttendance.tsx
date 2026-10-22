@@ -19,15 +19,19 @@ import { useClub } from '../context/ClubContext';
 import { AttendanceStatus, ClubBranch, Member } from '../types/club';
 import { MemberScoreModal } from './MemberScoreModal';
 import { UnitLeaderboard } from './UnitLeaderboard';
+import { UnitDrillScoreModal } from './UnitDrillScoreModal';
+import { UnitDrillLeaderboard } from './UnitDrillLeaderboard';
 
 interface LiveAttendanceProps {
   onOpenQrScanner: () => void;
   onViewMemberPass: (member: Member) => void;
+  onViewMemberDetails: (member: Member) => void;
 }
 
-export const LiveAttendance: React.FC<LiveAttendanceProps> = ({ 
+export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
   onOpenQrScanner,
-  onViewMemberPass 
+  onViewMemberPass,
+  onViewMemberDetails,
 }) => {
   const { 
     events, 
@@ -49,8 +53,13 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
     evaluationsLoading,
     evaluationsError,
     getMemberEvaluationForEvent,
+    getUnitDrillEvaluationsForEvent,
+    getUnitDrillAverageForEvent,
+    drillEvaluationsLoading,
+    drillEvaluationsError,
   } = useClub();
 
+  const [activeSection, setActiveSection] = useState<'attendance' | 'drill'>('attendance');
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('All');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<'All' | ClubBranch>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,8 +67,17 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
   const [customNote, setCustomNote] = useState('');
   const [scoringMemberId, setScoringMemberId] = useState<string | null>(null);
   const [scoreMessage, setScoreMessage] = useState('');
-  React.useEffect(() => { setScoringMemberId(null); setScoreMessage(''); }, [activeEventId, currentOrg.id, currentUser?.id]);
+  const [drillScoring, setDrillScoring] = useState<{ unitId: string; evaluationId?: string } | null>(null);
+  const [drillScoreMessage, setDrillScoreMessage] = useState('');
+  React.useEffect(() => {
+    setScoringMemberId(null); setScoreMessage('');
+    setDrillScoring(null); setDrillScoreMessage('');
+  }, [activeEventId, currentOrg.id, currentUser?.id]);
   const scoringMember = members.find(member => member.id === scoringMemberId);
+  const scoringDrillUnit = units.find(unit => unit.id === drillScoring?.unitId);
+  const scoringDrillExisting = drillScoring?.evaluationId && activeEvent
+    ? getUnitDrillEvaluationsForEvent(activeEvent.id, drillScoring.unitId).find(e => e.id === drillScoring.evaluationId)
+    : undefined;
 
   // Attendance stats for current active event
   const stats = useMemo(() => {
@@ -235,6 +253,84 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
         </div>
       )}
 
+      {/* Section Tabs: Attendance & Member Scores vs Marching & Drill */}
+      {canManageScoring && (
+        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg w-fit">
+          <button
+            onClick={() => setActiveSection('attendance')}
+            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${
+              activeSection === 'attendance' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Attendance & Member Scores
+          </button>
+          <button
+            onClick={() => setActiveSection('drill')}
+            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${
+              activeSection === 'drill' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Marching & Drill
+          </button>
+        </div>
+      )}
+
+      {activeSection === 'drill' && canManageScoring ? (
+        <div className="space-y-4">
+          {drillScoreMessage && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{drillScoreMessage}</p>}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs divide-y divide-slate-100">
+            {units.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No units registered for this church yet.</p>}
+            {units.map(unit => {
+              const submissions = activeEvent ? getUnitDrillEvaluationsForEvent(activeEvent.id, unit.id) : [];
+              const average = activeEvent ? getUnitDrillAverageForEvent(activeEvent.id, unit.id) : undefined;
+              const disabled = !activeEvent || drillEvaluationsLoading || !!drillEvaluationsError;
+              return (
+                <div key={unit.id} className="p-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-semibold text-slate-900">{unit.name}</p>
+                      <p className="text-xs text-slate-500">{unit.branch} · {unit.counselorName}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {average && (
+                        <span className="text-sm font-bold text-blue-900">
+                          Average: {average.averageScore}/{average.maxScore} ({average.evaluatorCount} evaluator{average.evaluatorCount === 1 ? '' : 's'})
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => { setDrillScoreMessage(''); setDrillScoring({ unitId: unit.id }); }}
+                        className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        + Add Evaluator
+                      </button>
+                    </div>
+                  </div>
+                  {submissions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {submissions.map(sub => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => { setDrillScoreMessage(''); setDrillScoring({ unitId: unit.id, evaluationId: sub.id }); }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 disabled:opacity-50"
+                        >
+                          <span>{sub.evaluatorName}: {sub.totalScore}/{sub.maxScore}</span>
+                          <span className="text-blue-900 font-semibold">Edit</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <UnitDrillLeaderboard />
+        </div>
+      ) : (
+      <>
       {/* Real-time Attendance Metrics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Attendance Rate */}
@@ -434,10 +530,10 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
                     <tr key={member.id} className="hover:bg-slate-50/60 transition-colors">
                       {/* Name & ID */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                            member.branch === 'Pathfinders' 
-                              ? 'bg-blue-100 text-blue-900' 
+                        <button type="button" onClick={() => onViewMemberDetails(member)} className="flex items-center gap-2.5 text-left cursor-pointer group">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                            member.branch === 'Pathfinders'
+                              ? 'bg-blue-100 text-blue-900'
                               : member.branch === 'Adventurers'
                               ? 'bg-emerald-100 text-emerald-900'
                               : 'bg-amber-100 text-amber-900'
@@ -445,14 +541,14 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
                             {member.firstName[0]}{member.lastName[0]}
                           </div>
                           <div>
-                            <span className="font-bold text-slate-900 block">
+                            <span className="font-bold text-slate-900 block group-hover:text-blue-900 group-hover:underline">
                               {member.firstName} {member.lastName}
                             </span>
                             <span className="font-mono text-[11px] text-slate-500">
                               {member.registrationNumber}
                             </span>
                           </div>
-                        </div>
+                        </button>
                       </td>
 
                       {/* Class */}
@@ -605,10 +701,15 @@ export const LiveAttendance: React.FC<LiveAttendanceProps> = ({
         </div>
       </div>
 
-      {/* Attendance Remark Note Modal */}
       <UnitLeaderboard />
+      </>
+      )}
+
+      {/* Attendance Remark Note Modal */}
       {scoringMember && activeEvent && canManageScoring && <MemberScoreModal key={`${activeEvent.id}_${scoringMember.id}`} event={activeEvent} member={scoringMember}
         onClose={() => setScoringMemberId(null)} onSaved={() => { setScoringMemberId(null); setScoreMessage('Scores saved.'); }} />}
+      {scoringDrillUnit && activeEvent && canManageScoring && <UnitDrillScoreModal key={`${activeEvent.id}_${scoringDrillUnit.id}_${drillScoring?.evaluationId ?? 'new'}`} event={activeEvent} unit={scoringDrillUnit} existing={scoringDrillExisting}
+        onClose={() => setDrillScoring(null)} onSaved={() => { setDrillScoring(null); setDrillScoreMessage('Drill score saved.'); }} />}
       {quickNoteMemberId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
           <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-5 max-w-md w-full">

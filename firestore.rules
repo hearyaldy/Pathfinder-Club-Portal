@@ -73,24 +73,31 @@ service cloud.firestore {
       return exists(attendancePath) && get(attendancePath).data.status in ['Present', 'Late'] ? 10 : 0;
     }
 
+    // Member scoresheet: Attendance (10 pts, auto) + 8 uniform items ticked
+    // pass/fail, splitting whatever's left of the 70 (80 for Investiture)
+    // full mark evenly between them.
     function validEvaluation(data, evaluationId) {
       let event = get(/databases/$(database)/documents/events/$(data.eventId)).data;
       let member = get(/databases/$(database)/documents/members/$(data.memberId)).data;
-      let investiture = event.type == 'Investiture';
-      let bonus = data.get('investitureBonusScore', 0);
-      return data.keys().hasAll(['id', 'orgId', 'eventId', 'memberId', 'attendanceScore', 'marchingDrillScore', 'uniformScore', 'disciplineScore', 'totalScore', 'maxScore', 'evaluatedAt'])
-        && data.keys().hasOnly(['id', 'orgId', 'eventId', 'memberId', 'unitId', 'attendanceScore', 'marchingDrillScore', 'uniformScore', 'disciplineScore', 'investitureBonusScore', 'totalScore', 'maxScore', 'notes', 'evaluatedAt'])
+      let maxScore = event.type == 'Investiture' ? 80 : 70;
+      // 8.0 forces float division — Firestore rules do integer (truncating) division
+      // between two ints, unlike JavaScript, which silently broke every score.
+      let perItem = (maxScore - 10) / 8.0;
+      return data.keys().hasAll(['id', 'orgId', 'eventId', 'memberId', 'attendanceScore', 'topsPass', 'pantsPass', 'beltPass', 'socksPass', 'shoesPass', 'neckerchiefPass', 'sliderPass', 'capCordSashPatchesPass', 'totalScore', 'maxScore', 'evaluatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'eventId', 'memberId', 'unitId', 'attendanceScore', 'topsPass', 'pantsPass', 'beltPass', 'socksPass', 'shoesPass', 'neckerchiefPass', 'sliderPass', 'capCordSashPatchesPass', 'totalScore', 'maxScore', 'notes', 'evaluatedAt'])
         && data.id == evaluationId && evaluationId == data.eventId + '_' + data.memberId
         && data.orgId == event.orgId && data.orgId == member.orgId
         && !event.keys().hasAny(['deletedAt'])
         && member.registrationStatus == 'Approved'
         && (event.branch == 'Both' || member.branch == event.branch || member.branch == 'Staff')
         && data.get('unitId', '') == member.get('unitId', '')
-        && validScore(data.marchingDrillScore, 20) && validScore(data.uniformScore, 20) && validScore(data.disciplineScore, 20)
-        && validScore(bonus, 10) && (investiture || !data.keys().hasAny(['investitureBonusScore']))
+        && data.topsPass is bool && data.pantsPass is bool && data.beltPass is bool && data.socksPass is bool
+        && data.shoesPass is bool && data.neckerchiefPass is bool && data.sliderPass is bool && data.capCordSashPatchesPass is bool
         && data.attendanceScore == scoreAttendance(data.eventId, data.memberId)
-        && data.maxScore == (investiture ? 80 : 70)
-        && data.totalScore == data.attendanceScore + data.marchingDrillScore + data.uniformScore + data.disciplineScore + bonus
+        && data.maxScore == maxScore
+        && data.totalScore == data.attendanceScore
+          + (data.topsPass ? perItem : 0) + (data.pantsPass ? perItem : 0) + (data.beltPass ? perItem : 0) + (data.socksPass ? perItem : 0)
+          + (data.shoesPass ? perItem : 0) + (data.neckerchiefPass ? perItem : 0) + (data.sliderPass ? perItem : 0) + (data.capCordSashPatchesPass ? perItem : 0)
         && data.get('notes', '') is string && data.evaluatedAt is string;
     }
 
@@ -99,7 +106,47 @@ service cloud.firestore {
       allow create: if canManageScores(request.resource.data.orgId) && validEvaluation(request.resource.data, evaluationId);
       allow update: if resource.data.orgId == request.resource.data.orgId && canManageScores(request.resource.data.orgId) && validEvaluation(request.resource.data, evaluationId);
     }
+
+    // Marching & Drill scoresheet: one evaluator scores a whole unit on 14
+    // commands (0-10 each, 140 max), minus two uncapped demerit deductions.
+    function validDrillEvaluation(data, evaluationId) {
+      let unit = get(/databases/$(database)/documents/units/$(data.unitId)).data;
+      let commandSum = data.fallIn + data.coverDressRightDress + data.recoverReadyFront + data.paradeRest
+        + data.countOff + data.attention + data.leftRightFace + data.aboutFace + data.markTimeMarch
+        + data.forwardMarch + data.readyHalt + data.presentArms + data.orderArms + data.dismiss;
+      let netScore = commandSum - data.demeritUnitCaptain - data.demeritMembers;
+      return data.keys().hasAll(['id', 'orgId', 'eventId', 'unitId', 'evaluatorName', 'fallIn', 'coverDressRightDress', 'recoverReadyFront', 'paradeRest', 'countOff', 'attention', 'leftRightFace', 'aboutFace', 'markTimeMarch', 'forwardMarch', 'readyHalt', 'presentArms', 'orderArms', 'dismiss', 'demeritUnitCaptain', 'demeritMembers', 'commandSubtotal', 'totalScore', 'maxScore', 'evaluatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'eventId', 'unitId', 'evaluatorName', 'fallIn', 'coverDressRightDress', 'recoverReadyFront', 'paradeRest', 'countOff', 'attention', 'leftRightFace', 'aboutFace', 'markTimeMarch', 'forwardMarch', 'readyHalt', 'presentArms', 'orderArms', 'dismiss', 'demeritUnitCaptain', 'demeritMembers', 'commandSubtotal', 'totalScore', 'maxScore', 'evaluatedAt'])
+        // Doc ids are opaque per-submission now (multiple evaluators per unit+event), just self-consistent.
+        && data.id == evaluationId
+        && data.orgId == unit.orgId
+        && data.evaluatorName is string && data.evaluatorName.size() > 0
+        && validScore(data.fallIn, 10) && validScore(data.coverDressRightDress, 10) && validScore(data.recoverReadyFront, 10)
+        && validScore(data.paradeRest, 10) && validScore(data.countOff, 10) && validScore(data.attention, 10)
+        && validScore(data.leftRightFace, 10) && validScore(data.aboutFace, 10) && validScore(data.markTimeMarch, 10)
+        && validScore(data.forwardMarch, 10) && validScore(data.readyHalt, 10) && validScore(data.presentArms, 10)
+        && validScore(data.orderArms, 10) && validScore(data.dismiss, 10)
+        && data.demeritUnitCaptain is number && data.demeritUnitCaptain >= 0
+        && data.demeritMembers is number && data.demeritMembers >= 0
+        && data.commandSubtotal == commandSum
+        && data.maxScore == 140
+        && data.totalScore == (netScore > 0 ? netScore : 0)
+        && data.evaluatedAt is string;
+    }
+
+    match /unitDrillScores/{evaluationId} {
+      allow read: if canManageScores(resource.data.orgId);
+      allow create: if canManageScores(request.resource.data.orgId) && validDrillEvaluation(request.resource.data, evaluationId);
+      allow update: if resource.data.orgId == request.resource.data.orgId && canManageScores(request.resource.data.orgId) && validDrillEvaluation(request.resource.data, evaluationId);
+    }
     // END scoring rules
+
+    // Advancement record (Class + Honors) — leader-only, no public surface touches this.
+    match /memberHonors/{honorId} {
+      allow read: if canManageScores(resource.data.orgId);
+      allow create: if canManageScores(request.resource.data.orgId);
+      allow update, delete: if canManageScores(resource.data.orgId);
+    }
 
     match /users/{uid} {
       allow read: if request.auth != null;
